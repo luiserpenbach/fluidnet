@@ -1,0 +1,14 @@
+name: LH2 heated channel
+description: Supercritical hydrogen heated from 24 K in a 6 mm channel, a cooling-jacket proxy for expander cycles. Wall temperature rises from 100 K to 400 K.
+components:
+  - {id: lh2_supply, type: boundary, fluid: H2, P: 40 bar, T: 24 K, ui: {x: 40, y: 140}}
+  - {id: inlet_orifice, type: orifice, diameter: 4 mm, cd: 0.8, ui: {x: 200, y: 150}}
+  - {id: channel, type: pipe, length: 1.5 m, diameter: 6 mm, roughness: 3 um, segments: 20, T_wall: [[0, 100 K], [2, 400 K]], ui: {x: 360, y: 150}}
+  - {id: outlet_orifice, type: orifice, diameter: 3.5 mm, cd: 0.8, ui: {x: 540, y: 150}}
+  - {id: turbine_inlet, type: boundary, fluid: H2, P: 30 bar, T: 300 K, ui: {x: 700, y: 140}}
+connections:
+  - [lh2_supply, inlet_orifice.in]
+  - [inlet_orifice.out, channel.in]
+  - [channel.out, outlet_orifice.in]
+  - [outlet_orifice.out, turbine_inlet]
+simulation: {t_end: 4, output_dt: 0.01, rtol: 1e-4, start_from_steady: true}

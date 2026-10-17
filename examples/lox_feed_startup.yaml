@@ -1,0 +1,16 @@
+name: LOX feed startup
+description: Subcooled LOX feed line, main valve opening against a chamber whose pressure rises at ignition. Shows valve-opening surge and line dynamics.
+components:
+  - {id: lox_tank, type: boundary, fluid: O2, P: 25 bar, T: 90 K, ui: {x: 40, y: 140}}
+  - {id: feed_line, type: pipe, length: 3 m, diameter: 20 mm, segments: 12, dz: -1 m, K: 1.2, ui: {x: 220, y: 150}}
+  - {id: main_valve, type: valve, diameter: 18 mm, cd: 0.8, characteristic: quick_opening, opening: [[0, 0], [0.1, 0], [0.35, 1]], ui: {x: 400, y: 150}}
+  - {id: manifold, type: junction, volume: 80 mL, ui: {x: 560, y: 160}}
+  - {id: injector, type: orifice, diameter: 7.5 mm, cd: 0.7, ui: {x: 680, y: 150}}
+  - {id: chamber, type: boundary, fluid: O2, P: [[0, 1 bar], [0.35, 1 bar], [0.8, 15 bar]], T: 300 K, ui: {x: 840, y: 140}}
+connections:
+  - [lox_tank, feed_line.in]
+  - [feed_line.out, main_valve.in]
+  - [main_valve.out, manifold]
+  - [manifold, injector.in]
+  - [injector.out, chamber]
+simulation: {t_end: 1.5, output_dt: 0.002, rtol: 1e-4}

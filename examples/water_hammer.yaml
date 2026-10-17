@@ -1,0 +1,12 @@
+name: Water hammer
+description: 100 m water line at 1.8 m/s, valve closed in 2 ms. Surge follows Joukowsky (rho a dv ~ 27 bar) with period 4L/a.
+components:
+  - {id: reservoir, type: boundary, fluid: H2O, P: 40 bar, T: 293.15 K, ui: {x: 40, y: 140}}
+  - {id: line, type: pipe, length: 100 m, diameter: 50 mm, roughness: 15 um, segments: 50, ui: {x: 240, y: 150}}
+  - {id: valve, type: valve, diameter: 25 mm, cd: 0.8, opening: [[0, 1], [0.02, 1], [0.022, 0]], leak: 0, ui: {x: 460, y: 150}}
+  - {id: outlet, type: boundary, fluid: H2O, P: 39 bar, T: 293.15 K, ui: {x: 640, y: 140}}
+connections:
+  - [reservoir, line.in]
+  - [line.out, valve.in]
+  - [valve.out, outlet]
+simulation: {t_end: 0.6, output_dt: 0.0005, rtol: 1e-3, start_from_steady: true}

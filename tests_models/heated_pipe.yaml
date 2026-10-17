@@ -1,0 +1,8 @@
+name: heated pipe energy balance
+components:
+  - {id: src, type: boundary, fluid: H2O, P: 20 bar, T: 300 K}
+  - {id: mf, type: mass_flow, mdot: 0.1 kg/s}
+  - {id: pipe, type: pipe, length: 2 m, diameter: 10 mm, segments: 10, q_wall: 100 kW/m2}
+  - {id: orf, type: orifice, diameter: 4 mm, cd: 0.8}
+  - {id: snk, type: boundary, fluid: H2O, P: 10 bar, T: 300 K}
+connections: [[src, mf.in], [mf.out, pipe.in], [pipe.out, orf.in], [orf.out, snk]]

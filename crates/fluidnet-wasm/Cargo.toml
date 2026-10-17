@@ -1,0 +1,13 @@
+[package]
+name = "fluidnet-wasm"
+description = "WebAssembly bindings (C ABI) for the fluidnet UI"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+fluidnet-core = { path = "../fluidnet-core" }
+serde_json = "1"

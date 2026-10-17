@@ -1,0 +1,12 @@
+[package]
+name = "fluidnet-core"
+description = "Lumped-parameter fluid network solver: transient and steady-state, real-fluid properties"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+faer = { version = "0.24", default-features = false, features = ["std", "sparse-linalg"] }

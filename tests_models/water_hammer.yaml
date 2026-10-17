@@ -1,0 +1,8 @@
+name: water hammer (Joukowsky check)
+components:
+  - {id: res, type: boundary, fluid: H2O, P: 40 bar, T: 293.15 K}
+  - {id: line, type: pipe, length: 100 m, diameter: 50 mm, roughness: 0, segments: 200}
+  - {id: vlv, type: valve, diameter: 25 mm, cd: 0.8, opening: [[0, 1], [0.02, 1], [0.022, 0]], leak: 0}
+  - {id: out, type: boundary, fluid: H2O, P: 39 bar, T: 293.15 K}
+connections: [[res, line.in], [line.out, vlv.in], [vlv.out, out]]
+simulation: {t_end: 0.6, output_dt: 0.0005, rtol: 1e-4, start_from_steady: true}

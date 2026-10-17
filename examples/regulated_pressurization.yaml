@@ -1,0 +1,16 @@
+name: Regulated tank pressurization
+description: 20 L GN2 bottle at 300 bar pressurizes a 50 L ullage through a regulator set to 35 bar while ullage gas is drawn off.
+components:
+  - {id: bottle, type: tank, fluid: N2, volume: 20 L, P0: 300 bar, T0: 290 K, ui: {x: 40, y: 140}}
+  - {id: press_line, type: pipe, length: 1.5 m, diameter: 6 mm, segments: 4, ui: {x: 200, y: 150}}
+  - {id: regulator, type: regulator, diameter: 4 mm, set_pressure: 35 bar, band: 2 bar, ui: {x: 360, y: 150}}
+  - {id: ullage, type: tank, fluid: N2, volume: 50 L, P0: 2 bar, T0: 290 K, ui: {x: 520, y: 140}}
+  - {id: drawoff, type: valve, diameter: 2.5 mm, cd: 0.8, opening: [[0, 0], [5, 0], [5.5, 1]], ui: {x: 680, y: 150}}
+  - {id: ambient, type: boundary, fluid: N2, P: 1 bar, T: 290 K, ui: {x: 840, y: 140}}
+connections:
+  - [bottle, press_line.in]
+  - [press_line.out, regulator.in]
+  - [regulator.out, ullage]
+  - [ullage, drawoff.in]
+  - [drawoff.out, ambient]
+simulation: {t_end: 60, output_dt: 0.1, rtol: 1e-4}

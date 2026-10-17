@@ -1,0 +1,6 @@
+name: water orifice
+components:
+  - {id: src, type: boundary, fluid: H2O, P: 10 bar, T: 293.15 K}
+  - {id: orf, type: orifice, diameter: 5 mm, cd: 0.7}
+  - {id: snk, type: boundary, fluid: H2O, P: 5 bar, T: 293.15 K}
+connections: [[src, orf.in], [orf.out, snk]]

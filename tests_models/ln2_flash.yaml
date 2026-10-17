@@ -1,0 +1,6 @@
+name: saturated LN2 through orifice
+components:
+  - {id: src, type: boundary, fluid: N2, P: 5 bar, x: 0}
+  - {id: orf, type: orifice, diameter: 2 mm, cd: 1.0}
+  - {id: snk, type: boundary, fluid: N2, P: 1 bar, T: 80 K}
+connections: [[src, orf.in], [orf.out, snk]]

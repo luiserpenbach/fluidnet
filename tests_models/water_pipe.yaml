@@ -1,0 +1,6 @@
+name: water pipe friction
+components:
+  - {id: src, type: boundary, fluid: H2O, P: 3 bar, T: 293.15 K}
+  - {id: pipe, type: pipe, length: 10 m, diameter: 20 mm, roughness: 15 um, segments: 10}
+  - {id: snk, type: boundary, fluid: H2O, P: 1 bar, T: 293.15 K}
+connections: [[src, pipe.in], [pipe.out, snk]]

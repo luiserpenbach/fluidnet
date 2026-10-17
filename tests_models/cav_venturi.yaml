@@ -1,0 +1,6 @@
+name: cavitating venturi
+components:
+  - {id: src, type: boundary, fluid: H2O, P: 30 bar, T: 300 K}
+  - {id: cv, type: venturi, diameter: 2 mm, cd: 0.95, recovery: 0.85}
+  - {id: snk, type: boundary, fluid: H2O, P: 1 bar, T: 300 K}
+connections: [[src, cv.in], [cv.out, snk]]

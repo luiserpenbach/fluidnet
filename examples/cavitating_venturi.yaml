@@ -1,0 +1,14 @@
+name: Cavitating venturi
+description: Water through a 3 mm cavitating venturi while back-pressure rises. Flow stays fixed until the throat un-chokes near 85 % pressure recovery.
+components:
+  - {id: supply, type: boundary, fluid: H2O, P: 30 bar, T: 293.15 K, ui: {x: 40, y: 140}}
+  - {id: feed, type: pipe, length: 1 m, diameter: 12 mm, segments: 4, ui: {x: 220, y: 150}}
+  - {id: venturi, type: venturi, diameter: 3 mm, cd: 0.95, recovery: 0.85, ui: {x: 400, y: 150}}
+  - {id: downstream, type: pipe, length: 0.5 m, diameter: 12 mm, segments: 2, ui: {x: 560, y: 150}}
+  - {id: back_pressure, type: boundary, fluid: H2O, P: [[0, 1 bar], [10, 29 bar]], T: 293.15 K, ui: {x: 740, y: 140}}
+connections:
+  - [supply, feed.in]
+  - [feed.out, venturi.in]
+  - [venturi.out, downstream.in]
+  - [downstream.out, back_pressure]
+simulation: {t_end: 10, output_dt: 0.02, rtol: 1e-4, start_from_steady: true}
