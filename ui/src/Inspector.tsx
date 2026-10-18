@@ -68,7 +68,7 @@ function TableField({ id, value, onCommit }: { id: string; value: any[][]; onCom
   );
 }
 
-function ParamRow({ comp, p, onChange }: { comp: Comp; p: any; onChange: (key: string, v: any) => void }) {
+function ParamRow({ comp, p, model, onChange }: { comp: Comp; p: any; model: Model; onChange: (key: string, v: any) => void }) {
   const raw = comp.params[p.key];
   const isTable = Array.isArray(raw);
   const fid = `p-${comp.id}-${p.key}`;
@@ -80,6 +80,18 @@ function ParamRow({ comp, p, onChange }: { comp: Comp; p: any; onChange: (key: s
         {FLUIDS.map((f) => (
           <option key={f.key} value={f.key}>
             {f.key} · {f.label}
+          </option>
+        ))}
+      </select>
+    );
+  } else if (p.kind === 'ref') {
+    const opts = model.components.filter((c) => c.type === p.target);
+    input = (
+      <select id={fid} className="field" value={raw ?? ''} onChange={(e) => onChange(p.key, e.target.value || null)}>
+        <option value="">{opts.length ? 'None' : `No ${p.target.replace('_', ' ')} in the model`}</option>
+        {opts.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.id}
           </option>
         ))}
       </select>
@@ -176,7 +188,7 @@ export function Inspector(props: {
         </div>
         <div className="section-label">Parameters</div>
         {spec.params.map((p: any) => (
-          <ParamRow key={p.key} comp={selected} p={p} onChange={(k, v) => props.onParam(selected.id, k, v)} />
+          <ParamRow key={p.key} comp={selected} p={p} model={model} onChange={(k, v) => props.onParam(selected.id, k, v)} />
         ))}
       </div>
     );
@@ -243,6 +255,15 @@ export function Inspector(props: {
         <input id="s-steady" type="checkbox" checked={s.start_from_steady} onChange={(e) => props.onSim({ start_from_steady: e.target.checked })} />
         Start from the steady state at t = 0
       </label>
+      <div className="prow">
+        <label htmlFor="s-steadyt" title="Schedules (valve openings, boundary pressures) are evaluated at this time for the steady-state solve">
+          Steady state evaluated at
+        </label>
+        <div className="with-unit">
+          <Field id="s-steadyt" value={s.steady_time == null ? '' : String(s.steady_time)} placeholder="0" onCommit={(v) => props.onSim({ steady_time: v.trim() === '' ? null : Number(v) })} />
+          <span>s</span>
+        </div>
+      </div>
       <div className="section-label">Model check</div>
       {check?.error ? (
         <div className="msg msg-err">{check.error}</div>

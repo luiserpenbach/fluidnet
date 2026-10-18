@@ -15,6 +15,10 @@ export const SYMBOL_SIZE: Record<string, [number, number]> = {
   regulator: [56, 44],
   loss: [48, 36],
   mass_flow: [48, 36],
+  pump: [48, 40],
+  turbine: [52, 40],
+  shaft: [76, 22],
+  combustion_chamber: [104, 60],
 };
 
 export function Symbol({ type, size = 1 }: { type: string; size?: number }) {
@@ -112,6 +116,57 @@ export function Symbol({ type, size = 1 }: { type: string; size?: number }) {
         </>
       );
       break;
+    case 'pump':
+      body = (
+        <>
+          <line x1={2} y1={cy} x2={w / 2 - 15} y2={cy} {...S} strokeWidth={1} />
+          <line x1={w / 2 + 15} y1={cy} x2={w - 2} y2={cy} {...S} strokeWidth={1} />
+          <circle cx={w / 2} cy={cy} r={15} {...S} fill="var(--surface)" />
+          <path d={`M${w / 2 - 8} ${cy - 10} L${w / 2 + 12} ${cy} L${w / 2 - 8} ${cy + 10}`} {...S} />
+        </>
+      );
+      break;
+    case 'turbine':
+      body = (
+        <>
+          <line x1={2} y1={cy} x2={10} y2={cy} {...S} strokeWidth={1} />
+          <line x1={w - 10} y1={cy} x2={w - 2} y2={cy} {...S} strokeWidth={1} />
+          <path d={`M10 ${cy - 8} L${w - 10} ${cy - 17} L${w - 10} ${cy + 17} L10 ${cy + 8} Z`} {...S} fill="var(--surface)" />
+          <line x1={w / 2} y1={cy + 12} x2={w / 2} y2={h} {...S} strokeWidth={1} strokeDasharray="2 2" />
+        </>
+      );
+      break;
+    case 'shaft':
+      body = (
+        <>
+          <line x1={2} y1={cy} x2={w - 2} y2={cy} {...S} strokeWidth={2.5} />
+          <rect x={w / 2 - 9} y={cy - 8} width={18} height={16} rx={3} {...S} fill="var(--surface)" />
+          <line x1={10} y1={cy - 6} x2={10} y2={cy + 6} {...S} />
+          <line x1={w - 10} y1={cy - 6} x2={w - 10} y2={cy + 6} {...S} />
+        </>
+      );
+      break;
+    case 'combustion_chamber': {
+      const c0 = 8;
+      const c1 = 46;
+      const th = 60;
+      const r = 17;
+      const rt = 6;
+      body = (
+        <>
+          <path
+            d={`M${c0} ${cy - r} L${c1} ${cy - r} C${c1 + 8} ${cy - r} ${th - 6} ${cy - rt} ${th} ${cy - rt} C${th + 14} ${cy - rt} ${w - 14} ${cy - 22} ${w - 2} ${cy - 27}
+               M${c0} ${cy + r} L${c1} ${cy + r} C${c1 + 8} ${cy + r} ${th - 6} ${cy + rt} ${th} ${cy + rt} C${th + 14} ${cy + rt} ${w - 14} ${cy + 22} ${w - 2} ${cy + 27}
+               M${c0} ${cy - r} L${c0} ${cy + r}`}
+            {...S}
+          />
+          <line x1={2} y1={cy - 9} x2={c0} y2={cy - 9} {...S} strokeWidth={1} />
+          <line x1={2} y1={cy + 9} x2={c0} y2={cy + 9} {...S} strokeWidth={1} />
+          <path d={`M${c0 + 6} ${cy} q4 -5 8 0 t8 0 t8 0`} {...S} strokeWidth={1} />
+        </>
+      );
+      break;
+    }
     default:
       body = <rect x={2} y={2} width={w - 4} height={h - 4} {...S} />;
   }

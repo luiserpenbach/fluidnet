@@ -15,6 +15,18 @@ are analytic or computed with CoolProp 8.0.
 | Heated water line, 100 kW/m², 0.1 kg/s | Δh = Q/ṁ = 62.83 kJ/kg | 62.73 kJ/kg (−0.16 %) |
 | GN2 regulator, set 30 bar, band 2 bar | Outlet within band | 30.68 bar |
 | Subcooled small water hammer exceeding static pressure | Column separation at P_v(20 °C) = 0.023 bar | Valve end settles at 0.0255 bar |
+| Water pump at design speed against an orifice | Same affinity map solved in Python: 8.38489 kg/s, η 0.6229 | 8.3857 kg/s, η 0.6228 |
+| Pressure-fed GH2/LOX chamber, 40 mm throat, ε 40 | Pc = ṁ c*/At with table c* and enthalpy correction: 45.4245 bar; ideal CF 1.9503, F 11,132.5 N | 45.4245 bar; 11,132.5 N |
+| Expander steady state | Shaft torque balance; jacket ṁΔh = Q; pump ṁΔh = P; throat flow = injected flow | all to 10⁻⁶ |
+| Expander start transient | Steady-state solver at the same inputs | Pc, thrust, speed, O/F within 0.3 % |
+
+Combustion tables against CEA (LOX/GH2, 50 bar, O/F 6): c* 2329 m/s, Tc 3508 K
+(CEA: about 2330 m/s and 3490–3510 K for gaseous hydrogen near room
+temperature). Nozzle relations: exit Mach 3.2783 and vacuum CF 1.7423 at γ 1.2,
+ε 10, matching an independent root solve. Copper Debye heat capacity: 82 J/kg/K
+at 50 K (tabulated 98, -16 %) and 243 J/kg/K at 100 K (tabulated 254, -4 %); the
+single-parameter Debye model underestimates metals at low temperature, which makes
+chill-down slightly faster than reality.
 
 Two-point omega against full HEM (CoolProp), restriction mass flux:
 

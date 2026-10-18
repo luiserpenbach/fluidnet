@@ -18,7 +18,7 @@ import { Comp, Model, parseModel, toYaml, toEngineJson, splitPort, fluidMap, use
 import { CompNode, CompNodeData } from './CompNode';
 import { Inspector } from './Inspector';
 import { Results, ResultSet, defaultSelection } from './Results';
-import { Symbol } from './symbols';
+import { Symbol, SYMBOL_SIZE } from './symbols';
 
 import exLox from '../../examples/lox_feed_startup.yaml?raw';
 import exGn2 from '../../examples/gn2_blowdown.yaml?raw';
@@ -26,8 +26,12 @@ import exHammer from '../../examples/water_hammer.yaml?raw';
 import exVenturi from '../../examples/cavitating_venturi.yaml?raw';
 import exReg from '../../examples/regulated_pressurization.yaml?raw';
 import exLh2 from '../../examples/lh2_heated_channel.yaml?raw';
+import exExpStart from '../../examples/expander_start.yaml?raw';
+import exExpThrottle from '../../examples/expander_cycle.yaml?raw';
 
 const EXAMPLES: [string, string][] = [
+  ['Closed expander throttling', exExpThrottle],
+  ['Closed expander start', exExpStart],
   ['LOX feed startup', exLox],
   ['LH2 heated channel', exLh2],
   ['Regulated tank pressurization', exReg],
@@ -52,6 +56,10 @@ const NEW_DEFAULTS: Record<string, Record<string, any>> = {
   regulator: { diameter: '4 mm', set_pressure: '10 bar' },
   loss: { diameter: '10 mm', K: 0.3 },
   mass_flow: { mdot: '0.1 kg/s' },
+  shaft: { inertia: '0.01 kg m2' },
+  pump: { design_speed: '30000 rpm', design_mdot: '1 kg/s', design_dp: '50 bar' },
+  turbine: { diameter: '10 mm', mean_diameter: '100 mm' },
+  combustion_chamber: { throat_diameter: '30 mm' },
 };
 
 function loadStored(): Model | null {
@@ -66,23 +74,39 @@ function loadStored(): Model | null {
 function overlayFor(c: Comp, rs: ResultSet | null, k: number): string[] {
   if (!rs) return [];
   const has = (n: string) => rs.has(n);
-  const P = (n: string) => `${fmt(rs.at(n, k) / 1e5, 4)} bar`;
+  const at = (n: string) => rs.at(n, k);
+  const P = (n: string) => `${fmt(at(n) / 1e5, 4)} bar`;
   if (NODE_LIKE.has(c.type)) {
     const out: string[] = [];
     if (has(`${c.id}.P`)) out.push(P(`${c.id}.P`));
     if (has(`${c.id}.T`)) {
-      let s = `${fmt(rs.at(`${c.id}.T`, k), 4)} K`;
-      const x = has(`${c.id}.x`) ? rs.at(`${c.id}.x`, k) : NaN;
+      let s = `${fmt(at(`${c.id}.T`), 4)} K`;
+      const x = has(`${c.id}.x`) ? at(`${c.id}.x`) : NaN;
       if (isFinite(x) && x > 0.0005 && x < 0.9995) s += ` · x ${fmt(x, 2)}`;
       out.push(s);
     }
     return out;
   }
+  if (c.type === 'shaft') return has(`${c.id}.speed`) ? [`${fmt((at(`${c.id}.speed`) * 30) / Math.PI, 4)} rpm`] : [];
+  if (c.type === 'combustion_chamber') {
+    if (!has(`${c.id}.Pc`)) return [];
+    return [
+      `Pc ${fmt(at(`${c.id}.Pc`) / 1e5, 4)} bar · O/F ${fmt(at(`${c.id}.OF`), 3)}`,
+      `F ${fmt(at(`${c.id}.thrust`) / 1e3, 4)} kN · Isp ${fmt(at(`${c.id}.Isp`), 4)} s`,
+    ];
+  }
   const m = c.type === 'pipe' && has(`${c.id}.mdot_in`) ? `${c.id}.mdot_in` : `${c.id}.mdot`;
   const out: string[] = [];
-  if (has(m)) out.push(`${fmt(rs.at(m, k), 4)} kg/s`);
-  if (has(`${c.id}.dp`)) out.push(`Δp ${fmt(rs.at(`${c.id}.dp`, k) / 1e5, 3)} bar`);
-  if (has(`${c.id}.choked`) && rs.at(`${c.id}.choked`, k) > 0.5) out.push('choked');
+  if (has(m)) out.push(`${fmt(at(m), 4)} kg/s`);
+  if (c.type === 'pump' && has(`${c.id}.dp`)) {
+    out.push(`+${fmt(at(`${c.id}.dp`) / 1e5, 4)} bar · η ${fmt(at(`${c.id}.eff`) * 100, 3)} %`);
+  } else if (c.type === 'turbine' && has(`${c.id}.power`)) {
+    out.push(`${fmt(at(`${c.id}.power`) / 1e3, 4)} kW · PR ${fmt(at(`${c.id}.pr`), 3)}`);
+  } else if (has(`${c.id}.dp`)) {
+    out.push(`Δp ${fmt(at(`${c.id}.dp`) / 1e5, 3)} bar`);
+  }
+  if (has(`${c.id}.Q`)) out.push(`Q ${fmt(at(`${c.id}.Q`) / 1e3, 4)} kW${has(`${c.id}.Tw_max`) ? ` · Tw ${fmt(at(`${c.id}.Tw_max`), 4)} K` : ''}`);
+  if (has(`${c.id}.choked`) && at(`${c.id}.choked`) > 0.5) out.push('choked');
   return out;
 }
 
@@ -111,7 +135,7 @@ function Palette({ catalog, onAdd }: { catalog: any; onAdd: (type: string) => vo
               onClick={() => onAdd(c.type)}
             >
               <span className="pal-sym">
-                <Symbol type={c.type} size={0.6} />
+                <Symbol type={c.type} size={Math.min(0.6, 42 / (SYMBOL_SIZE[c.type]?.[0] ?? 48))} />
               </span>
               {c.label}
             </button>
@@ -128,7 +152,7 @@ function Editor() {
   const rf = useReactFlow();
   const [catalog, setCatalog] = useState<any>(null);
   const [engineErr, setEngineErr] = useState<string | null>(null);
-  const [model, setModel] = useState<Model>(() => loadStored() ?? parseModel(exLox));
+  const [model, setModel] = useState<Model>(() => loadStored() ?? parseModel(exExpThrottle));
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [check, setCheck] = useState<any>(null);
   const [rs, setRs] = useState<ResultSet | null>(null);
@@ -279,7 +303,7 @@ function Editor() {
       if (c.type === 'boundary' || Math.abs(dx) >= Math.abs(dy)) return dx >= 0 ? 'p-r' : 'p-l';
       return dy >= 0 ? 'p-b' : 'p-t';
     };
-    return model.connections.map(([a, b], i) => {
+    const fluidEdges: Edge[] = model.connections.map(([a, b], i) => {
       const [ca, pa] = splitPort(a);
       const [cb, pb] = splitPort(b);
       const fluid = fluids.get(ca) ?? fluids.get(cb) ?? '';
@@ -293,7 +317,39 @@ function Editor() {
         style: { stroke: FLUID_COLORS[fluid] ?? 'var(--ink-soft)', strokeWidth: 2 },
       } as Edge;
     });
-  }, [model.connections, byId, fluids]);
+    const links: Edge[] = [];
+    for (const c of model.components) {
+      if ((c.type === 'pump' || c.type === 'turbine') && c.params.shaft && byId.has(String(c.params.shaft))) {
+        links.push({
+          id: `m:${c.id}`,
+          source: c.id,
+          target: String(c.params.shaft),
+          sourceHandle: 'mech',
+          targetHandle: 'mech',
+          type: 'straight',
+          selectable: false,
+          deletable: false,
+          className: 'mech-link',
+          style: { stroke: 'var(--ink-soft)', strokeWidth: 1.2, strokeDasharray: '5 4' },
+        } as Edge);
+      }
+      if (c.type === 'pipe' && c.params.hot_chamber && byId.has(String(c.params.hot_chamber))) {
+        links.push({
+          id: `h:${c.id}`,
+          source: String(c.params.hot_chamber),
+          target: c.id,
+          sourceHandle: 'heat',
+          targetHandle: 'heat',
+          type: 'smoothstep',
+          selectable: false,
+          deletable: false,
+          className: 'heat-link',
+          style: { stroke: 'var(--heat)', strokeWidth: 1.2, strokeDasharray: '2 4' },
+        } as Edge);
+      }
+    }
+    return [...fluidEdges, ...links];
+  }, [model.connections, model.components, byId, fluids]);
 
   // ---- mutations
   const mutate = (f: (m: Model) => Model) => setModel((m) => f(m));
@@ -333,7 +389,7 @@ function Editor() {
   );
 
   const onEdgesChange = useCallback((changes: EdgeChange[]) => {
-    const removed = changes.filter((c) => c.type === 'remove').map((c: any) => c.id as string);
+    const removed = changes.filter((c) => c.type === 'remove').map((c: any) => c.id as string).filter((id) => id.startsWith('e'));
     if (removed.length) {
       mutate((m) => ({ ...m, connections: m.connections.filter(([a, b], i) => !removed.includes(`e${i}:${a}~${b}`)) }));
     }
@@ -342,9 +398,10 @@ function Editor() {
   const onConnect = useCallback(
     (c: Connection) => {
       if (!c.source || !c.target || c.source === c.target) return;
+      if ([c.source, c.target].some((id) => model.components.find((x) => x.id === id)?.type === 'shaft')) return;
       const ref = (id: string, h: string | null | undefined) => {
         const comp = model.components.find((x) => x.id === id);
-        if (!comp) return id;
+        if (!comp || comp.type === 'shaft') return id;
         return NODE_LIKE.has(comp.type) ? id : `${id}.${h}`;
       };
       const a = ref(c.source, c.sourceHandle);
@@ -562,6 +619,7 @@ function Editor() {
       <aside className="app-right">
         <Inspector
           model={model}
+          key={selectedId ?? '-'}
           selected={selected}
           catalog={catalog}
           check={check}

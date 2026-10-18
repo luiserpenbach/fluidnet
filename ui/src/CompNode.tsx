@@ -21,7 +21,16 @@ function CompNodeImpl({ data, selected }: { data: any; selected?: boolean }) {
   const L = flip ? Position.Right : Position.Left;
   const R = flip ? Position.Left : Position.Right;
   const handles: React.ReactNode[] = [];
-  if (nodeLike) {
+  const anchor = (id: string, pos: Position, style: React.CSSProperties = {}) => (
+    <Handle key={id} id={id} type="source" position={pos} isConnectable={false} className="anchor" style={{ ...hs, ...style }} />
+  );
+  if (type === 'shaft') {
+    handles.push(anchor('mech', Position.Top));
+  } else if (type === 'combustion_chamber') {
+    handles.push(<Handle key="fuel" id="fuel" type="source" position={Position.Left} style={{ ...hs, top: h / 2 - 9 }} className="port" title="fuel" />);
+    handles.push(<Handle key="ox" id="ox" type="source" position={Position.Left} style={{ ...hs, top: h / 2 + 9 }} className="port" title="oxidizer" />);
+    handles.push(anchor('heat', Position.Top, { left: 30 }));
+  } else if (nodeLike) {
     const sides: [string, Position][] =
       type === 'boundary'
         ? [['p-l', Position.Left], ['p-r', Position.Right]]
@@ -32,6 +41,8 @@ function CompNodeImpl({ data, selected }: { data: any; selected?: boolean }) {
   } else {
     handles.push(<Handle key="in" id="in" type="source" position={L} style={hs} className="port port-in" />);
     handles.push(<Handle key="out" id="out" type="source" position={R} style={hs} className="port port-out" />);
+    if (type === 'pump' || type === 'turbine') handles.push(anchor('mech', Position.Bottom));
+    if (type === 'pipe') handles.push(anchor('heat', Position.Top));
   }
   return (
     <div className={`cnode${selected ? ' sel' : ''}${error ? ' err' : ''}`} style={{ color }}>

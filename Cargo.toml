@@ -1,9 +1,10 @@
 [workspace]
 resolver = "2"
-members = ["crates/fluidnet-core", "crates/fluidnet-cli", "crates/fluidnet-wasm"]
+members = ["crates/fluidnet-core", "crates/fluidnet-cli", "crates/fluidnet-wasm", "crates/fluidnet-py"]
+default-members = ["crates/fluidnet-core", "crates/fluidnet-cli"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 license = "MIT"
 

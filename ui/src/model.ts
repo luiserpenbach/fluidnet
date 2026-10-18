@@ -12,6 +12,7 @@ export interface Sim {
   output_dt?: number | null;
   rtol: number;
   start_from_steady: boolean;
+  steady_time?: number | null;
   max_step?: number | null;
 }
 
@@ -154,6 +155,10 @@ export function displayUnit(si: string): DisplayUnit {
       return { label: 'kJ/kg', scale: 1e-3 };
     case 'W':
       return { label: 'kW', scale: 1e-3 };
+    case 'rad/s':
+      return { label: 'rpm', scale: 30 / Math.PI };
+    case 'N':
+      return { label: 'kN', scale: 1e-3 };
     default:
       return { label: si, scale: 1 };
   }

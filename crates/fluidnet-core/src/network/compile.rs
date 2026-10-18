@@ -615,15 +615,16 @@ impl Network {
                         } else {
                             HotSide::None
                         };
-                        let hot_total =
-                            match (&hot, hot_area_total) {
-                                (HotSide::None, _) => 0.0,
-                                (_, Some(a)) => a,
-                                (HotSide::Flux(_), None) => wet_total,
-                                (_, None) => return Err(Error::Model(format!(
+                        let hot_total = match (&hot, hot_area_total) {
+                            (HotSide::None, _) => 0.0,
+                            (_, Some(a)) => a,
+                            (HotSide::Flux(_), None) => wet_total,
+                            (_, None) => {
+                                return Err(Error::Model(format!(
                                     "{id}: give hot_area (hot-gas side area of the cooled wall)"
-                                ))),
-                            };
+                                )))
+                            }
+                        };
                         let cool_factor = p.q("cool_area_factor")?;
                         let corr = p.q("cool_correction")?;
                         let t0 = p.q_opt("wall_T0")?;

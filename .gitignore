@@ -4,3 +4,4 @@ ui/dist/
 ui/public/
 ui/artifact/
 *.csv
+python/fluidnet/fluids/

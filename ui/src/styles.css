@@ -20,6 +20,7 @@
   --warn-wash: #fff6e5;
   --bad: #c9302c;
   --bad-wash: #fdeeed;
+  --heat: #d9711c;
   --sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   color-scheme: light;
@@ -104,6 +105,8 @@ select.field { padding: 4px 6px; }
 .cnode-overlay { position: absolute; top: calc(100% + 18px); left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: 10.5px; color: var(--muted); white-space: nowrap; text-align: center; line-height: 1.35; pointer-events: none; font-variant-numeric: tabular-nums; }
 .port { width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid var(--ink-soft) !important; background: var(--surface) !important; opacity: 0.0; transition: opacity 0.1s; }
 .react-flow__node:hover .port, .react-flow__node.selected .port, .react-flow.connecting .port { opacity: 1; }
+.anchor { opacity: 0 !important; pointer-events: none; border: none !important; background: transparent !important; }
+.react-flow__edge.mech-link, .react-flow__edge.heat-link { pointer-events: none; }
 .port-in { border-color: var(--ink-soft) !important; }
 .port-out { background: var(--ink-soft) !important; }
 .canvas-legend { position: absolute; right: 12px; top: 10px; display: flex; gap: 12px; font-family: var(--mono); font-size: 11px; color: var(--muted); background: rgba(255, 255, 255, 0.85); padding: 2px 6px; border-radius: 4px; }

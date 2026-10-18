@@ -46,22 +46,29 @@ export class ResultSet {
 /** Default channels to plot after a run. */
 export function defaultSelection(rs: ResultSet): string[] {
   const out: string[] = [];
-  for (const c of rs.meta.components) {
-    if (['tank', 'junction'].includes(c.type)) out.push(`${c.id}.P`);
-  }
-  for (const c of rs.meta.components) {
+  const comps = rs.meta.components;
+  for (const c of comps) if (c.type === 'combustion_chamber') out.push(`${c.id}.Pc`, `${c.id}.thrust`, `${c.id}.OF`);
+  for (const c of comps) if (c.type === 'shaft') out.push(`${c.id}.speed`);
+  for (const c of comps) if (['tank', 'junction'].includes(c.type)) out.push(`${c.id}.P`);
+  for (const c of comps) {
     if (c.type === 'pipe') out.push(rs.has(`${c.id}.mdot_out`) ? `${c.id}.mdot_out` : `${c.id}.mdot`);
-    else if (!['tank', 'junction', 'boundary'].includes(c.type)) out.push(`${c.id}.mdot`);
+    else if (['pump'].includes(c.type) || !['tank', 'junction', 'boundary', 'shaft', 'combustion_chamber', 'turbine'].includes(c.type)) out.push(`${c.id}.mdot`);
   }
-  for (const c of rs.meta.components) {
+  for (const c of comps) {
     if (c.type === 'pipe' && rs.has(`${c.id}.Q`)) {
       const o = rs.portNode(c.id, 'out');
       if (o) out.push(`${o}.T`);
-      out.push(`${c.id}.Q`);
+      if (rs.has(`${c.id}.Tw_max`)) out.push(`${c.id}.Tw_max`);
     }
     if (c.type === 'tank') out.push(`${c.id}.T`);
   }
-  return out.filter((n) => rs.has(n)).slice(0, 8);
+  const engine = comps.some((c: any) => c.type === 'combustion_chamber');
+  const pick = out.filter((n) => rs.has(n));
+  if (engine) {
+    // keep engine-level channels and the pump flows, skip line-by-line flows
+    return pick.filter((n) => !n.includes('.mdot') || comps.some((c: any) => c.type === 'pump' && n === `${c.id}.mdot`)).slice(0, 10);
+  }
+  return pick.slice(0, 8);
 }
 
 function Chart({ rs, names, height, onProbe, probe }: { rs: ResultSet; names: string[]; height: number; onProbe: (k: number) => void; probe: number | null }) {
@@ -212,7 +219,7 @@ function ValuesTable({ rs, k }: { rs: ResultSet; k: number }) {
     return fmt(rs.at(n, k) * du.scale, 5);
   };
   const rows = rs.meta.components.map((c: any) => {
-    const nodeLike = ['tank', 'junction', 'boundary'].includes(c.type);
+    const nodeLike = ['tank', 'junction', 'boundary', 'shaft', 'combustion_chamber'].includes(c.type);
     const pin = nodeLike ? c.id : rs.portNode(c.id, 'in');
     const pout = nodeLike ? null : rs.portNode(c.id, 'out');
     const mdot = c.type === 'pipe' ? (rs.has(`${c.id}.mdot_in`) ? `${c.id}.mdot_in` : `${c.id}.mdot`) : `${c.id}.mdot`;
@@ -228,12 +235,40 @@ function ValuesTable({ rs, k }: { rs: ResultSet; k: number }) {
         <td className="num">{pout ? v(`${pout}.T`) : '–'}</td>
         <td className="num">{pin ? v(`${pin}.rho`) : '–'}</td>
         <td className="num">{isFinite(x) && x > 0 && x < 1 ? fmt(x, 3) : '–'}</td>
-        <td className="num">{nodeLike ? '–' : v(mdot)}</td>
+        <td className="num">{c.type === 'combustion_chamber' ? v(`${c.id}.mdot`) : nodeLike ? '–' : v(mdot)}</td>
         <td>
           {choked && <span className="pill pill-warn">choked</span>}
           {rs.has(`${c.id}.opening`) && <span className="pill">{fmt(rs.at(`${c.id}.opening`, k) * 100, 3)} % open</span>}
           {c.type === 'tank' && rs.has(`${c.id}.m`) && <span className="pill">{fmt(rs.at(`${c.id}.m`, k), 4)} kg</span>}
           {rs.has(`${c.id}.Q`) && <span className="pill">{fmt(rs.at(`${c.id}.Q`, k) / 1e3, 4)} kW</span>}
+          {rs.has(`${c.id}.Tw_max`) && <span className="pill">wall {fmt(rs.at(`${c.id}.Tw_max`, k), 4)} K</span>}
+          {c.type === 'pump' && (
+            <>
+              <span className="pill">+{fmt(rs.at(`${c.id}.dp`, k) / 1e5, 4)} bar</span>
+              <span className="pill">η {fmt(rs.at(`${c.id}.eff`, k) * 100, 3)} %</span>
+              <span className="pill">{fmt(rs.at(`${c.id}.power`, k) / 1e3, 4)} kW</span>
+              <span className="pill">NPSH {fmt(rs.at(`${c.id}.npsh`, k), 4)} m</span>
+            </>
+          )}
+          {c.type === 'turbine' && (
+            <>
+              <span className="pill">{fmt(rs.at(`${c.id}.power`, k) / 1e3, 4)} kW</span>
+              <span className="pill">η {fmt(rs.at(`${c.id}.eff`, k) * 100, 3)} %</span>
+              <span className="pill">PR {fmt(rs.at(`${c.id}.pr`, k), 4)}</span>
+              <span className="pill">u/c0 {fmt(rs.at(`${c.id}.u_c0`, k), 3)}</span>
+            </>
+          )}
+          {c.type === 'shaft' && <span className="pill">{fmt((rs.at(`${c.id}.speed`, k) * 30) / Math.PI, 5)} rpm</span>}
+          {c.type === 'combustion_chamber' && (
+            <>
+              <span className="pill">Pc {fmt(rs.at(`${c.id}.Pc`, k) / 1e5, 4)} bar</span>
+              <span className="pill">O/F {fmt(rs.at(`${c.id}.OF`, k), 4)}</span>
+              <span className="pill">F {fmt(rs.at(`${c.id}.thrust`, k) / 1e3, 4)} kN</span>
+              <span className="pill">Isp {fmt(rs.at(`${c.id}.Isp`, k), 4)} s</span>
+              <span className="pill">c* {fmt(rs.at(`${c.id}.cstar`, k), 4)} m/s</span>
+              <span className="pill">Tc {fmt(rs.at(`${c.id}.Tc`, k), 4)} K</span>
+            </>
+          )}
         </td>
       </tr>
     );

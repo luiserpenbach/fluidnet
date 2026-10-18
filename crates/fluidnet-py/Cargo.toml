@@ -1,0 +1,15 @@
+[package]
+name = "fluidnet-py"
+description = "Python bindings for fluidnet"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "_core"
+crate-type = ["cdylib"]
+
+[dependencies]
+fluidnet-core = { path = "../fluidnet-core" }
+serde_json = "1"
+pyo3 = { version = "0.22", features = ["extension-module", "abi3-py38"] }
