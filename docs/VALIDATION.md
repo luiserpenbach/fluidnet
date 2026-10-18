@@ -56,6 +56,7 @@ Two checks per test point:
 - **At measured speed** (component-level): the shaft speed is prescribed at the
   measured value and the mixture-ratio valve set to the measured O/F; the other
   nine measured quantities, thrust and the turbopump power balance are outputs.
+  Statistics cover TP2–TP5 (TP1 is the calibration point).
   This tests the flow, heat-transfer and combustion models without the
   turbomachinery maps.
 - **Free running**: only the bypass (TCV) and mixture-ratio valves are set, to the
@@ -64,7 +65,7 @@ Two checks per test point:
 
 | | fluidnet 0.4 (enthalpy driving, contour) | fluidnet 0.3 (frozen c_p ΔT) | ROCETS |
 |---|---|---|---|
-| At measured speed, 45 values: mean / max error | 0.79 % / 3.6 % | 1.07 % / 7.2 % | – |
+| At measured speed, TP2–TP5 (36 values): mean / max error | 0.90 % / 3.6 % | 1.25 % / 7.2 % | – |
 | At measured speed: turbine inlet T error, TP3 / TP4 | +0.7 % / +0.4 % | +5.4 % / +7.2 % | – |
 | At measured speed: turbine power − pump power, TP3 / TP4 | −8.3 % / −12.8 % | −2.7 % / −4.8 % | – |
 | Free running, TP2–5, 40 values: mean / max error | 2.92 % / 9.7 % | 1.39 % / 8.1 % | 1.26 % / 3.1 % |

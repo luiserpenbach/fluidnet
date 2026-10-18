@@ -305,12 +305,24 @@ def at_speed(calres: dict, verbose=True) -> dict:
         if verbose:
             print(f"{tp['id']} at measured speed: thrust {row['thrust_err_pct']:+.2f} %, turbine - pumps - drag {row['power_gap_pct']:+.1f} % | "
                   + " ".join(f"{k.split('_')[0][:4]}{v:+.2f}" for k, v in row["err_pct"].items()))
-    allv = [abs(v) for r in rows for v in r["err_pct"].values()]
-    out = {"points": rows, "mean_abs": float(np.mean(allv)), "max_abs": float(np.max(allv)),
-           "within_1": float(np.mean(np.array(allv) <= 1.0)), "within_2": float(np.mean(np.array(allv) <= 2.0)), "n": len(allv)}
+    out = {"points": rows, **speed_stats(rows)}
     if verbose:
-        print(f"at measured speed, {out['n']} values: mean |e| {out['mean_abs']:.2f} %, max {out['max_abs']:.2f} %, within 1 % {out['within_1']*100:.0f} %, within 2 % {out['within_2']*100:.0f} %")
+        p = out["predicted"]
+        print(f"at measured speed, TP2-TP5 ({p['n']} predicted values): mean |e| {p['mean_abs']:.2f} %, max {p['max_abs']:.2f} %, "
+              f"within 1 % {p['within_1']*100:.0f} %, within 2 % {p['within_2']*100:.0f} %")
     return out
+
+
+def speed_stats(rows: list) -> dict:
+    """Statistics of the measured-speed check: all points, and TP2-TP5 only
+    (TP1 is the calibration point, where most errors are zero by construction)."""
+    def st(vals):
+        a = np.abs(np.array(vals))
+        return {"n": int(a.size), "mean_abs": float(a.mean()), "max_abs": float(a.max()),
+                "within_1": float((a <= 1.0).mean()), "within_2": float((a <= 2.0).mean())}
+    allv = [v for r in rows for v in r["err_pct"].values()]
+    pred = [v for r in rows if r["id"] != "TP1" for v in r["err_pct"].values()]
+    return {**st(allv), "predicted": st(pred)}
 
 
 def write_model(calres: dict):

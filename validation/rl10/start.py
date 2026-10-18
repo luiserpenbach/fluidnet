@@ -34,7 +34,7 @@ ROOT = HERE.parents[1]
 PSI = 6894.757293
 RANK = 5.0 / 9.0
 
-# measured and ROCETS time to accelerate, CR-195478 Table 2 (s from MES)
+# time to accelerate, CR-195478 Table 2 (s from MES): (run, ROCETS simulated, measured)
 TTA_TABLE = [
     ("ground test", 2.09, 2.26),
     ("ground test", 1.80, 1.90),

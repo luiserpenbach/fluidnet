@@ -108,7 +108,7 @@ q = h_g/c_p,frozen · (h_c − h_eq(T_w)), where h_c − h_eq(T_wall,ref) and th
 near-wall equilibrium c_p are tabulated with the combustion tables. It includes
 the heat released when dissociated species recombine at the cold wall, which
 makes the heat flux fall with mixture ratio on the fuel-rich side (−4 % from O/F
-5.63 to 4.67 for LOX/LH2), where c_p,frozen (T_c − T_w) rises. On the RL10 this
+5.63 to 4.67 for LOX/LH2), where c_p,frozen (T_c − T_w) rises 3 %. On the RL10 this
 brings the turbine inlet temperature from 5–7 % to within 0.7 % of the test data.
 
 Pump and turbine maps: generic (affinity laws from one design point, impulse

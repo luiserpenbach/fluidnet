@@ -187,8 +187,8 @@ example opens the turbine bypass from the design point (66 % thrust and back).
 `examples/rl10a33a.yaml` is the Pratt & Whitney RL10A-3-3A built from NASA's
 published component data and calibrated at one ground-test point. With the
 measured shaft speed imposed, it predicts the other measured pressures, flows
-and the turbine inlet temperature at all five test points with 0.79 % mean
-error (largest 3.6 %). Running free, it predicts the four other points with
+and the turbine inlet temperature at the four further test points with 0.9 %
+mean error (largest 3.6 %). Running free, it predicts the four other points with
 2.9 % mean error (NASA's ROCETS with the manufacturer's maps: 1.3 %): the
 generic single-design-point pump and turbine maps leave the turbopump 8–13 %
 short of power at the lowest mixture ratios. `examples/rl10a33a_start.yaml`
