@@ -184,13 +184,26 @@ steps, not on error-test failures.
    switched evolution relaxation and geometrically), which damps stiff and
    acoustic modes;
 3. time-marching with the transient integrator and inputs frozen at t, followed
-   by Newton polishing.
+   by Newton polishing;
+4. last resort: an ordinary transient from the initial state through the actual
+   input history up to t (e.g. an engine start sequence), then held at t until
+   the rates are small, then Newton.
+Flow states left at zero get a guess first: pumps at their design flow (and
+imposed mass flows), propagated through the network by mass balance and split
+at branch points in proportion to the effective flow areas. This lets Newton
+converge from a cold initial state of a turbopump cycle (RL10 model: 15 s to
+20 ms). A warm start from an earlier result (`init=` in Python) skips all of it.
 Free shafts are first held at a speed guess (N0 or the design speed of their
 pumps) and released once that problem converges (continuation), which finds the
 operating point of turbopump cycles from cold initial states. Residuals below
 1e-3 of the steady weights per second (e.g. a tank draining through a closed
 valve's leakage over days) are accepted as quasi-steady. `steady_time` sets the
 time at which schedules are evaluated. Dead-end volumes keep their initial states.
+
+**Pressure-actuated valves**: a valve with `sense` gets a position state with
+first-order lag toward a command linear in the sensed pressure (or difference
+of two pressures; a chamber id senses Pc). `latch` makes the motion one-way in
+transients (pneumatic sequencing valves); steady solves ignore the latch.
 
 **Initial conditions**: nodes without P0/T0 take the state of the nearest
 specified node, propagating first through elements that are open at t = 0, so a

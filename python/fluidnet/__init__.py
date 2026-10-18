@@ -108,6 +108,8 @@ class Results:
         self.warnings: List[str] = meta.get("warnings", [])
         self.stats = meta.get("stats") or meta.get("steady")
         self.elapsed: float = meta.get("elapsed_s", float("nan"))
+        #: final state by name; pass as ``init=`` to warm-start another run
+        self.state: Dict[str, float] = dict(zip(meta.get("state_names", []), meta.get("final_state", [])))
 
     def __getitem__(self, name: str) -> np.ndarray:
         try:
@@ -150,13 +152,25 @@ class Results:
         return f"<Results {self.meta.get('name')!r} {self.meta.get('mode')}: {span}{len(self.names)} channels, {self.elapsed * 1e3:.1f} ms>"
 
 
-def run(model: ModelLike, mode: str = "transient", steady_time: Optional[float] = None, fluids: Optional[str] = None) -> Results:
+def run(
+    model: ModelLike,
+    mode: str = "transient",
+    steady_time: Optional[float] = None,
+    fluids: Optional[str] = None,
+    init: Union["Results", Mapping[str, float], None] = None,
+) -> Results:
     """Run a model (path, YAML/JSON text, or dict). mode: 'transient' or 'steady'.
 
-    A transient that fails part-way returns the results up to the failure with
-    ``res.error`` set. The solver releases the GIL, so threads run in parallel.
+    ``init`` warm-starts the run from the final state of an earlier result (or
+    a {state name: value} mapping), e.g. to step a steady solution through a
+    parameter sweep. A transient that fails part-way returns the results up to
+    the failure with ``res.error`` set. The solver releases the GIL, so threads
+    run in parallel.
     """
-    meta, data = _core.run(_text(model), mode, fluids or fluids_dir(), steady_time)
+    if isinstance(init, Results):
+        init = init.state
+    init_list = [(str(k), float(v)) for k, v in init.items()] if init else None
+    meta, data = _core.run(_text(model), mode, fluids or fluids_dir(), steady_time, init_list)
     return Results(json.loads(meta), data)
 
 

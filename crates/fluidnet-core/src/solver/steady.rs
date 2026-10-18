@@ -32,6 +32,7 @@ fn steady_weights(net: &Network, y: &[f64], w: &mut [f64]) {
             StateKind::Speed => 1e-3 + 1e-7 * y[i].abs(),
             StateKind::WallTemp => 1e-4 + 1e-7 * y[i].abs(),
             StateKind::MixFrac => 1e-8,
+            StateKind::Position => 1e-7,
         };
     }
 }
@@ -253,7 +254,7 @@ fn march(net: &Network, y0: &[f64], t: f64) -> Option<Vec<f64>> {
         rtol: 1e-4,
         atol_scale: 1.0,
         max_step: 1e8,
-        max_steps: 20_000,
+        max_steps: 5_000,
         out_times: vec![],
         freeze_time: Some(t),
         steady_tol: Some(1e-3),
@@ -272,6 +273,66 @@ fn march(net: &Network, y0: &[f64], t: f64) -> Option<Vec<f64>> {
             None
         }
     }
+}
+
+/// Ordinary transient: first the actual input history from 0 to t (for a
+/// steady state at the end of a start sequence), then with inputs held at t,
+/// with limited step size, until the rates are small or 30 s have passed.
+fn settle(net: &Network, y0: &[f64], t: f64) -> Option<Vec<f64>> {
+    use crate::solver::transient::{integrate, TransientOptions};
+    let debug = cfg!(not(target_arch = "wasm32")) && std::env::var("FLUIDNET_DEBUG").is_ok();
+    let mut y = y0.to_vec();
+    if t > 0.0 {
+        let opts = TransientOptions {
+            t0: 0.0,
+            t_end: t,
+            rtol: 1e-4,
+            atol_scale: 1.0,
+            max_step: (t / 20.0).min(0.25),
+            max_steps: 50_000,
+            out_times: vec![t],
+            freeze_time: None,
+            steady_tol: None,
+        };
+        let mut last: Option<Vec<f64>> = None;
+        let mut sink = |_t: f64, yy: &[f64]| {
+            last = Some(yy.to_vec());
+            Ok(())
+        };
+        let r = integrate(net, y0, &opts, &mut sink, &mut |_| true);
+        if debug {
+            eprintln!("steady: transient 0..{t} s: {:?}", r.as_ref().err());
+        }
+        match (r, last) {
+            (Ok(_), Some(yy)) => y = yy,
+            _ => {}
+        }
+    }
+    let opts = TransientOptions {
+        t0: 0.0,
+        t_end: 30.0,
+        rtol: 1e-4,
+        atol_scale: 1.0,
+        max_step: 0.25,
+        max_steps: 50_000,
+        out_times: vec![],
+        freeze_time: Some(t),
+        steady_tol: Some(1e-3),
+    };
+    let mut last: Option<Vec<f64>> = None;
+    let mut sink = |_t: f64, yy: &[f64]| {
+        last = Some(yy.to_vec());
+        Ok(())
+    };
+    let mut t_last = 0.0;
+    let r = integrate(net, &y, &opts, &mut sink, &mut |tt| {
+        t_last = tt;
+        true
+    });
+    if debug {
+        eprintln!("steady: transient settling ended at t = {t_last:.3} s: {:?}", r.as_ref().err());
+    }
+    last
 }
 
 /// Try the direct methods (Newton, then pseudo-transient continuation, then
@@ -351,6 +412,25 @@ pub fn solve(
             },
         ));
     }
+    // cold start: flow states left at zero get a guess from the pump design flows
+    let y_user = y0;
+    let mut y_guess = y0.to_vec();
+    for (i, v) in net.flow_guess(t, y0) {
+        if y_guess[i] == 0.0 {
+            y_guess[i] = v;
+        }
+    }
+    let y0 = &y_guess[..];
+    // latching actuators settle at their commanded position in a steady state
+    let unlatched;
+    let net = if net.latch_active && net.actuators.iter().any(|a| a.latch) {
+        let mut n = net.clone();
+        n.latch_active = false;
+        unlatched = n;
+        &unlatched
+    } else {
+        net
+    };
     let mut st = SteadyStats::default();
     let free: Vec<usize> = (0..net.shafts.len())
         .filter(|&s| net.shafts[s].state.is_some() && net.shafts[s].w_guess > 0.0)
@@ -372,7 +452,32 @@ pub fn solve(
         }
         st.method.clear();
     }
-    match solve_direct(net, y0, t, max_iter, &mut st)? {
+    let direct = solve_direct(net, y0, t, max_iter, &mut st)?;
+    let direct = match direct {
+        Ok(y) => Ok(y),
+        Err(e) => {
+            // last resort: settle with an ordinary transient (bounded steps, free
+            // shafts), then polish. Large engine models started from a crude
+            // guess can surge or cavitate when marched with huge steps.
+            match settle(net, y_user, t) {
+                Some(ys) => {
+                    let mut st2 = SteadyStats::default();
+                    match solve_direct(net, &ys, t, max_iter, &mut st2)? {
+                        Ok(y) => {
+                            st.iterations += st2.iterations;
+                            st.rhs_evals += st2.rhs_evals;
+                            st.jacobians += st2.jacobians;
+                            st.method = format!("transient settling + {}", st2.method);
+                            Ok(y)
+                        }
+                        Err(e2) => Err(e2),
+                    }
+                }
+                None => Err(e),
+            }
+        }
+    };
+    match direct {
         Ok(y) => {
             st.converged = true;
             Ok((y, st))

@@ -4,7 +4,8 @@ Fast, modular simulation of fluid systems and liquid rocket engine cycles:
 steady state and transients of feed lines, pressurant systems, turbopumps,
 regeneratively cooled walls and thrust chambers. Lumped-parameter networks in
 the style of EcosimPro / GFSSP, real-fluid properties from CoolProp,
-equilibrium combustion from Cantera, a Rust core that runs natively, as
+equilibrium combustion from Cantera, validated against RL10A-3-3A test data,
+a Rust core that runs natively, as
 WebAssembly in a browser schematic editor, and from Python.
 
 ```
@@ -64,6 +65,7 @@ maturin develop --release          # or: maturin build --release, then pip insta
 ```python
 import fluidnet as fn
 res = fn.run("examples/expander_cycle.yaml", mode="steady")
+res2 = fn.run(other_model, mode="steady", init=res)   # warm start from an earlier result
 res.last("tca.Pc"), res["turbopump.speed"], res.units["tca.thrust"]
 
 m = fn.load("examples/expander_cycle.yaml")          # model as a dict
@@ -125,7 +127,7 @@ evaluated for a steady-state solve, e.g. the end of a start sequence).
 | `pipe` | in, out | Discretised line: staggered volumes and momentum segments with inertia, Churchill friction, K losses, elevation, optional wall temperature (Gnielinski) or heat flux |
 | `orifice` | in, out | Fixed restriction; liquid with cavitation/flashing, two-phase HEM, choked real gas; optional pressure recovery |
 | `venturi` | in, out | Cavitating venturi (orifice with diffuser recovery, default 0.85) |
-| `valve` | in, out | Scheduled opening, linear / equal-percentage / quick-opening, area or Cv/Kv |
+| `valve` | in, out | Scheduled opening, linear / equal-percentage / quick-opening, area or Cv/Kv; or pressure-actuated (`sense`, `sense_ref`, `sense_lo/hi` → `opening_lo/hi`, actuator lag, optional one-shot `latch`) |
 | `check_valve` | in, out | Opens between cracking and full-open differential pressure |
 | `regulator` | in, out | Proportional pressure regulator sensing outlet pressure |
 | `loss` | in, out | Minor loss K (elbows, tees, filters) |
@@ -173,6 +175,16 @@ turbopump, ignition at 0.5 s, fuel-rich LOX idle, then the climb to mainstage by
 about 6.5 s, ending within 0.3 % of the steady-state solution. The throttling
 example opens the turbine bypass from the design point (66 % thrust and back).
 
+## Validation against the RL10A-3-3A
+
+`examples/rl10a33a.yaml` is the Pratt & Whitney RL10A-3-3A built from NASA's
+published component data and calibrated at one ground-test point. It predicts
+four further test points with 1.39 % mean error (ROCETS, NASA's model with the
+manufacturer's maps: 1.26 %), within 1 % near the calibration point and up to
+8 % at the lowest mixture ratio. `examples/rl10a33a_start.yaml` reaches 200 psia
+1.84 s after the start signal (measured 1.43–2.56 s). Details, error sources
+and the scripts in docs/VALIDATION.md and `validation/rl10/`.
+
 ## Performance
 
 Typical feed-system models (20–60 states) run a full transient in 5–50 ms
@@ -183,23 +195,25 @@ water-hammer case runs in 0.4 s; 600 states in about 3–6 s at rtol 1e-3–1e-4
 
 ## Status and roadmap
 
-Validated (see docs/VALIDATION.md): adiabatic gas blowdown, Bernoulli and
+Validated (see docs/VALIDATION.md): RL10A-3-3A ground-test data, adiabatic gas blowdown, Bernoulli and
 cavitating flow, Darcy friction, Joukowsky surge and 4L/a period, HEM flashing,
 energy balance in heated lines, regulator droop, pump map, chamber pressure and
 thrust coefficient, shaft torque and jacket energy balances of the expander.
 
 Next:
 
-1. Design-mode steady state: solve for chosen parameters (orifice areas, valve
+1. Multi-point pump and turbine maps (head, efficiency, flow from test data) and
+   an enthalpy-based local Bartz along the contour: the two error sources of the
+   RL10 validation.
+2. Design-mode steady state: solve for chosen parameters (orifice areas, valve
    positions, pump speed) to meet targets (Pc, O/F, power balance) inside the
    solver, replacing the external sizing loop.
-2. Local Bartz along the contour (area ratio per wall element) and nozzle
-   extension radiation; two-phase boiling heat transfer for chill-down.
-3. Multi-stage pumps and turbines with full Suter-type four-quadrant maps;
-   dual-expander (two turbines, two shafts) and gas-generator topologies.
-4. Tanks with liquid/ullage stratification and pressurant collapse.
-5. Tauri desktop build with the native core; event-driven controls (valve
-   sequencing on pressure or speed thresholds instead of time).
+3. Nozzle extension radiation; two-phase boiling heat transfer for chill-down.
+4. Four-quadrant pump maps; dual-expander (two turbines, two shafts) and
+   gas-generator topologies.
+5. Tanks with liquid/ullage stratification and pressurant collapse.
+6. Tauri desktop build with the native core; controllers sensing speed and
+   flow (valves can already act on sensed pressures).
 
 Known limits: one fluid per connected circuit (no mixing of species except in
 the chamber); homogeneous equilibrium everywhere (no thermal non-equilibrium or

@@ -56,6 +56,9 @@ pub struct Results {
     pub n_states: usize,
     /// Set when the run stopped early; data up to the failure is kept.
     pub error: Option<String>,
+    /// State names and the last recorded state (warm start for later runs).
+    pub state_names: Vec<String>,
+    pub final_state: Vec<f64>,
 }
 
 impl Results {
@@ -98,6 +101,7 @@ struct Recorder<'a> {
     ev: Eval,
     time: Vec<f64>,
     data: Vec<Vec<f64>>,
+    last_y: Vec<f64>,
 }
 
 impl<'a> Recorder<'a> {
@@ -107,10 +111,13 @@ impl<'a> Recorder<'a> {
             ev: Eval::new(net),
             time: vec![],
             data: vec![Vec::new(); net.channels.len()],
+            last_y: vec![],
         }
     }
     fn record(&mut self, t: f64, y: &[f64]) -> Result<()> {
         self.net.evaluate(t, y, &mut self.ev)?;
+        self.last_y.clear();
+        self.last_y.extend_from_slice(y);
         self.time.push(t);
         for (c, d) in self.net.channels.iter().zip(self.data.iter_mut()) {
             d.push(self.net.probe(&c.probe, &self.ev));
@@ -125,6 +132,8 @@ impl<'a> Recorder<'a> {
     ) -> Results {
         let net = self.net;
         Results {
+            state_names: net.state_names.clone(),
+            final_state: self.last_y,
             name: net.name.clone(),
             mode,
             time: self.time,

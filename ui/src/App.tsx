@@ -28,8 +28,12 @@ import exReg from '../../examples/regulated_pressurization.yaml?raw';
 import exLh2 from '../../examples/lh2_heated_channel.yaml?raw';
 import exExpStart from '../../examples/expander_start.yaml?raw';
 import exExpThrottle from '../../examples/expander_cycle.yaml?raw';
+import exRl10 from '../../examples/rl10a33a.yaml?raw';
+import exRl10Start from '../../examples/rl10a33a_start.yaml?raw';
 
 const EXAMPLES: [string, string][] = [
+  ['RL10A-3-3A (test point 1)', exRl10],
+  ['RL10A-3-3A start', exRl10Start],
   ['Closed expander throttling', exExpThrottle],
   ['Closed expander start', exExpStart],
   ['LOX feed startup', exLox],

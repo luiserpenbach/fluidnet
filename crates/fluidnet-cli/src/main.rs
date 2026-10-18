@@ -316,8 +316,8 @@ fn main() -> ExitCode {
     }
     if let Some(s) = &res.steady {
         eprintln!(
-            "  steady: {} iterations, {} rhs evals, converged {}",
-            s.iterations, s.rhs_evals, s.converged
+            "  steady: {} iterations, {} rhs evals, converged {} ({})",
+            s.iterations, s.rhs_evals, s.converged, s.method
         );
     }
     let pat = flag("--print");

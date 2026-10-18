@@ -38,3 +38,50 @@ Two-point omega against full HEM (CoolProp), restriction mass flux:
 | N2O, saturated, 50 bar | 1.008 |
 | N2, 3 K subcooled, 5 bar | 0.994 |
 | N2O, 5 K subcooled, 50 bar | 0.979 |
+
+## RL10A-3-3A engine against test data
+
+`examples/rl10a33a.yaml` models the Pratt & Whitney RL10A-3-3A closed expander
+from the geometry and component design points in NASA TM-107318 and CR-190786.
+Eight factors are calibrated at test point 1 of CR-190786 (fuel pump head scale,
+turbine nozzle area and peak efficiency, hot-gas heat transfer factor, jacket
+throat-region loss, fuel and LOX injector discharge, nozzle thrust efficiency).
+Test points 2 to 5 are then predicted with only the bypass (TCV) and
+mixture-ratio valve openings set to the measured thrust and O/F, as done for
+ROCETS. Reproduce with `python validation/rl10/rl10.py` (8 s) and
+`python validation/rl10/start.py` (95 s); `cargo test` checks the calibration
+point and the start.
+
+| Test points 2–5, 40 measured values | fluidnet | ROCETS (CR-190786) |
+|---|---|---|
+| Mean absolute error | 1.39 % | 1.26 % |
+| RMS error | 2.19 % | 1.55 % |
+| Largest error | 8.1 % (turbine inlet T, TP4) | 3.1 % |
+| Within 1 % / 3 % | 65 % / 83 % | 55 % / 98 % |
+| Mean error with each model's TP1 offset removed | 1.35 % | 0.38 % |
+
+fluidnet is calibrated at TP1 and ROCETS is not, so the plain errors favour
+fluidnet; with the TP1 offset removed (only the change between operating points
+compared), ROCETS is clearly more accurate. Near TP1 (O/F 5.42, 5.55) 17 of 20
+predictions are within 1 %. At O/F 4.99 and 4.67 the turbine inlet temperature
+is 5.5 % and 8.1 % high and the TP4 pressures 2–3.5 % low. Causes:
+
+- single-point affinity pump maps: the tested fuel pump head coefficient is
+  nearly flat over the 10 % flow-coefficient range, the generic curve loses 2.6 %;
+  the model then runs out of turbine power (TCV closed) at TP3 and TP4. Fitting
+  the head curve to the measured slope (`rl10.py headcurve`, uses TP4 data)
+  gives 1.02 % mean error, 95 % within 3 %;
+- Bartz with frozen specific heat keeps the jacket heat constant across O/F,
+  while the test data imply a 6 % drop.
+
+Start transient (`examples/rl10a33a_start.yaml`, pressure-actuated OCV, FCV1 and
+TCV): time from start signal to 200 psia is 1.84 s against 1.43–2.56 s measured
+on nine starts (mean 1.93 s, CR-195478 Table 2); the start ends within 0.2 % of
+the TP1 steady state. The unpublished start-valve settings move the result from
+1.26 s to no start, so this is a plausibility check, not a validated prediction.
+
+Published data that had to be resolved: the 2.47 in and 5.13 in chamber
+dimensions are radii (the 19.19 in² throat area gives 4.94 in diameter); the
+printed 1.05 in² venturi throat would choke at the TP1 fuel flow (1.5 in² used);
+the published design point's pump heads are about 5 % above the tested pumps and
+its turbine data deliver 12 % less power than its pump data absorb.

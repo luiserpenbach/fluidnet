@@ -16,6 +16,8 @@ pub enum PKind {
     Bool,
     /// Reference to another component by id (target type in `ParamSpec::target`).
     Ref,
+    /// Free text (node names).
+    Text,
 }
 
 #[derive(Debug, Clone)]
@@ -548,6 +550,50 @@ pub fn specs() -> Vec<CompSpec> {
             "Closed-position area fraction.",
         ),
         restriction_model(),
+        ParamSpec {
+            key: "sense",
+            label: "Sensed pressure",
+            kind: PKind::Text,
+            dim: Dim::None,
+            default: None,
+            optional: true,
+            schedulable: false,
+            choices: &[],
+            help: "Pressure-actuated valve: node whose pressure drives the opening (junction id, component.port, or a combustion chamber id for Pc). Opening then gives the initial position.",
+            unit: "",
+            target: "",
+        },
+        ParamSpec {
+            key: "sense_ref",
+            label: "Reference pressure",
+            kind: PKind::Text,
+            dim: Dim::None,
+            default: None,
+            optional: true,
+            schedulable: false,
+            choices: &[],
+            help: "Optional second node: the signal is sense minus sense_ref (e.g. pump outlet minus inlet).",
+            unit: "",
+            target: "",
+        },
+        q("sense_lo", "Signal low", Dim::Pressure, "bar", Some("0"), "Sensed signal at which the actuator commands opening_lo."),
+        q("sense_hi", "Signal high", Dim::Pressure, "bar", Some("1 bar"), "Sensed signal at which the actuator commands opening_hi (linear in between)."),
+        q("opening_lo", "Opening at low signal", Dim::None, "-", Some("0"), "Commanded position at or below sense_lo."),
+        q("opening_hi", "Opening at high signal", Dim::None, "-", Some("1"), "Commanded position at or above sense_hi (lower than opening_lo for a valve that closes on rising pressure)."),
+        q("actuator_time", "Actuator time constant", Dim::Time, "ms", Some("50 ms"), "First-order lag of the actuator."),
+        ParamSpec {
+            key: "latch",
+            label: "Latching",
+            kind: PKind::Bool,
+            dim: Dim::None,
+            default: Some("false"),
+            optional: false,
+            schedulable: false,
+            choices: &[],
+            help: "In transients the actuator moves only towards opening_hi (one-shot sequencing valves).",
+            unit: "",
+            target: "",
+        },
     ]);
     v.push(CompSpec {
         kind: "valve",
@@ -866,7 +912,7 @@ pub fn catalog_json() -> Value {
                 "node_like": c.node_like, "help": c.help,
                 "params": c.params.iter().map(|p| json!({
                     "key": p.key, "label": p.label,
-                    "kind": match p.kind { PKind::Quantity => "quantity", PKind::Fluid => "fluid", PKind::Choice => "choice", PKind::Int => "int", PKind::Bool => "bool", PKind::Ref => "ref" },
+                    "kind": match p.kind { PKind::Quantity => "quantity", PKind::Fluid => "fluid", PKind::Choice => "choice", PKind::Int => "int", PKind::Bool => "bool", PKind::Ref => "ref", PKind::Text => "text" },
                     "target": p.target,
                     "dim": format!("{:?}", p.dim), "si": p.dim.si_unit(), "unit": p.unit,
                     "default": p.default, "optional": p.optional || p.default.is_some(),
@@ -919,7 +965,7 @@ impl<'a> Params<'a> {
             })
     }
 
-    fn raw(&self, key: &str) -> Option<Value> {
+    pub fn raw(&self, key: &str) -> Option<Value> {
         match self.map.get(key) {
             Some(Value::Null) | None => self
                 .pspec(key)

@@ -185,6 +185,7 @@ impl Network {
         }
 
         let mut breakpoints: Vec<f64> = Vec::new();
+        let mut pending_act: Vec<PendingAct> = Vec::new();
         let mut comps: Vec<CompInfo> = defs
             .iter()
             .map(|d| CompInfo {
@@ -708,15 +709,53 @@ impl Network {
                                         )))
                                     }
                                 };
-                            (
-                                p.cda()?,
+                            let leak = p.q("leak")?.max(0.0);
+                            let ctrl = if let Some(sense) = p.str_opt("sense") {
+                                let s_lo = p.q("sense_lo")?;
+                                let s_hi = p.q("sense_hi")?;
+                                if !(s_hi > s_lo) {
+                                    return Err(Error::Model(format!(
+                                        "{id}: sense_hi must be greater than sense_lo"
+                                    )));
+                                }
+                                let tau = p.q("actuator_time")?;
+                                if !(tau > 0.0) {
+                                    return Err(Error::Model(format!(
+                                        "{id}: actuator_time must be > 0"
+                                    )));
+                                }
+                                let latch = match p.raw("latch") {
+                                    Some(serde_json::Value::Bool(b)) => b,
+                                    Some(serde_json::Value::String(v)) => {
+                                        matches!(v.trim(), "true" | "yes" | "1")
+                                    }
+                                    Some(serde_json::Value::Number(n)) => {
+                                        n.as_f64().unwrap_or(0.0) != 0.0
+                                    }
+                                    _ => false,
+                                };
+                                let act = pending_act.len();
+                                pending_act.push(PendingAct {
+                                    id: id.clone(),
+                                    sense,
+                                    sense_ref: p.str_opt("sense_ref"),
+                                    s_lo,
+                                    s_hi,
+                                    u_lo: p.q("opening_lo")?.clamp(0.0, 1.0),
+                                    u_hi: p.q("opening_hi")?.clamp(0.0, 1.0),
+                                    tau,
+                                    latch,
+                                    u0: opening.at(0.0).clamp(0.0, 1.0),
+                                });
+                                Ctrl::Actuated { act, charac, leak }
+                            } else {
                                 Ctrl::Valve {
                                     opening,
                                     charac,
-                                    leak: p.q("leak")?.max(0.0),
-                                },
-                                rmodel(p)?,
-                            )
+                                    leak,
+                                }
+                            };
+                            (p.cda()?, ctrl, rmodel(p)?)
                         }
                         "check_valve" => {
                             let crack = p.q("cracking_dp")?;
@@ -1055,6 +1094,10 @@ impl Network {
                     ..
                 } => opening.at(0.0) <= 0.0,
                 BranchKind::Restriction {
+                    ctrl: Ctrl::Actuated { act, .. },
+                    ..
+                } => pending_act[*act].u0 <= 0.0,
+                BranchKind::Restriction {
                     ctrl: Ctrl::Check { .. },
                     ..
                 } => true,
@@ -1222,6 +1265,75 @@ impl Network {
             );
         }
 
+        // valve actuators: resolve sensed pressures, allocate position states
+        let chamber_comp: HashMap<usize, usize> =
+            chamber_of_comp.iter().map(|(&c, &ch)| (c, ch)).collect();
+        let resolve_sense = |owner: &str, name: &str| -> Result<Sense> {
+            let name = name.trim();
+            if let Some(i) = nodes.iter().position(|n| n.name == name) {
+                if !matches!(nodes[i].kind, NodeKind::ChamberPort { .. }) {
+                    return Ok(Sense::Node(i));
+                }
+            }
+            let (cid, pn) = match name.rsplit_once('.') {
+                Some((a, b)) if id_index.contains_key(a) => (a, Some(b)),
+                _ => (name, None),
+            };
+            let ci = *id_index.get(cid).ok_or_else(|| {
+                Error::Model(format!("{owner}.sense: no node or component '{name}'"))
+            })?;
+            if let Some(&ch) = chamber_comp.get(&ci) {
+                if pn.is_none() || pn == Some("Pc") {
+                    return Ok(Sense::Chamber(ch));
+                }
+            }
+            let c = &comps[ci];
+            let node = match pn {
+                Some(pn) => c.ports.iter().find(|(n, _)| n == pn).map(|&(_, i)| i),
+                None => c.nodes.first().copied(),
+            };
+            match node {
+                Some(i) if matches!(nodes[i].kind, NodeKind::ChamberPort { .. }) => {
+                    if let NodeKind::ChamberPort { ch, .. } = nodes[i].kind {
+                        Ok(Sense::Chamber(ch))
+                    } else {
+                        unreachable!()
+                    }
+                }
+                Some(i) => Ok(Sense::Node(i)),
+                None => Err(Error::Model(format!(
+                    "{owner}.sense: '{name}' is not a node (use a node-like component id or component.port)"
+                ))),
+            }
+        };
+        let mut actuators: Vec<Actuator> = Vec::new();
+        for pa in &pending_act {
+            let sense = resolve_sense(&pa.id, &pa.sense)?;
+            let sense_ref = match &pa.sense_ref {
+                Some(r) => Some(resolve_sense(&pa.id, r)?),
+                None => None,
+            };
+            let state = push_state(
+                StateKind::Position,
+                format!("{}.position", pa.id),
+                pa.u0,
+                &mut n_states,
+            );
+            actuators.push(Actuator {
+                name: pa.id.clone(),
+                state,
+                sense,
+                sense_ref,
+                s_lo: pa.s_lo,
+                s_hi: pa.s_hi,
+                u_lo: pa.u_lo,
+                u_hi: pa.u_hi,
+                tau: pa.tau,
+                latch: pa.latch,
+                u0: pa.u0,
+            });
+        }
+
         breakpoints.retain(|t| *t > 0.0 && t.is_finite());
         breakpoints.sort_by(|a, b| a.partial_cmp(b).unwrap());
         breakpoints.dedup_by(|a, b| (*a - *b).abs() < 1e-12);
@@ -1234,6 +1346,8 @@ impl Network {
             shafts,
             walls,
             chambers,
+            actuators,
+            latch_active: true,
             comps,
             n_states,
             state_kind,
@@ -1415,4 +1529,17 @@ impl Network {
         }
         ch
     }
+}
+
+struct PendingAct {
+    id: String,
+    sense: String,
+    sense_ref: Option<String>,
+    s_lo: f64,
+    s_hi: f64,
+    u_lo: f64,
+    u_hi: f64,
+    tau: f64,
+    latch: bool,
+    u0: f64,
 }

@@ -1,0 +1,56 @@
+{
+  "source": "Binder, M., 'An RL10A-3-3A Rocket Engine Model Using the Rocket Engine Transient Simulator (ROCETS) Software', NASA CR-190786, 1993, Tables 1-5. https://ntrs.nasa.gov/citations/19950017370",
+  "units": "psia, deg R, gpm, rpm, lbf",
+  "notes": [
+    "Values transcribed from an OCR text of the report. Garbled entries were resolved from the printed percent differences and the other columns:",
+    "TP3 LOX pump discharge test value prints as 547.70; 647.70 is consistent with ROCETS 634.20 at -2.08 %.",
+    "TP3 LOX pump speed test value prints as 1304x.10; 13040.10 is consistent with ROCETS 12921.20 at -0.91 %.",
+    "TP3 tank inputs print with an unreadable last digit (26.5x, 38.5x, 35.8x, 174.7x); taken as 26.5, 38.5, 35.8, 174.7.",
+    "TP5 O/F prints as 5.4x; 5.42 follows from the measured LOX and fuel inlet volumetric flows at tank densities (the same calculation reproduces 5.63, 5.55, 4.99 and 4.67 at the other points).",
+    "ROCETS values are stored as the printed percent differences; four ROCETS entries at TP1 and TP5 have unreadable digits but readable percentages."
+  ],
+  "params": {
+    "fuel_pump_discharge_P": {"label": "Fuel pump discharge pressure", "unit": "psia"},
+    "fuel_pump_inlet_flow": {"label": "Fuel pump inlet volumetric flow", "unit": "gpm"},
+    "venturi_inlet_P": {"label": "Venturi inlet pressure", "unit": "psia"},
+    "turbine_inlet_T": {"label": "Turbine inlet temperature", "unit": "R"},
+    "fuel_manifold_P": {"label": "Fuel injector manifold pressure", "unit": "psia"},
+    "lox_pump_discharge_P": {"label": "LOX pump discharge pressure", "unit": "psia"},
+    "lox_pump_speed": {"label": "LOX pump shaft speed", "unit": "rpm"},
+    "lox_pump_inlet_flow": {"label": "LOX pump inlet volumetric flow", "unit": "gpm"},
+    "lox_plenum_P": {"label": "LOX injector plenum pressure", "unit": "psia"},
+    "chamber_P": {"label": "Chamber pressure (injector face)", "unit": "psia"}
+  },
+  "points": [
+    {"id": "TP1", "thrust": 16603, "of": 5.63, "fuel_tank_P": 27.0, "fuel_tank_T": 38.6, "lox_tank_P": 35.8, "lox_tank_T": 174.7,
+     "test": {"fuel_pump_discharge_P": 1061.40, "fuel_pump_inlet_flow": 580.60, "venturi_inlet_P": 800.45, "turbine_inlet_T": 439.32, "fuel_manifold_P": 534.19,
+              "lox_pump_discharge_P": 613.80, "lox_pump_speed": 12697.0, "lox_pump_inlet_flow": 205.82, "lox_plenum_P": 532.50, "chamber_P": 472.35},
+     "rocets_pct": {"fuel_pump_discharge_P": -2.65, "fuel_pump_inlet_flow": 1.08, "venturi_inlet_P": -0.06, "turbine_inlet_T": -3.24, "fuel_manifold_P": -1.17,
+              "lox_pump_discharge_P": -2.54, "lox_pump_speed": -0.84, "lox_pump_inlet_flow": 0.57, "lox_plenum_P": -1.24, "chamber_P": -0.77}},
+    {"id": "TP2", "thrust": 16588, "of": 5.55, "fuel_tank_P": 27.0, "fuel_tank_T": 38.6, "lox_tank_P": 35.3, "lox_tank_T": 174.7,
+     "test": {"fuel_pump_discharge_P": 1068.90, "fuel_pump_inlet_flow": 588.90, "venturi_inlet_P": 808.56, "turbine_inlet_T": 432.92, "fuel_manifold_P": 535.67,
+              "lox_pump_discharge_P": 619.10, "lox_pump_speed": 12747.0, "lox_pump_inlet_flow": 205.59, "lox_plenum_P": 532.67, "chamber_P": 472.96},
+     "rocets_pct": {"fuel_pump_discharge_P": -2.80, "fuel_pump_inlet_flow": 0.77, "venturi_inlet_P": -0.57, "turbine_inlet_T": -3.13, "fuel_manifold_P": -1.27,
+              "lox_pump_discharge_P": -2.78, "lox_pump_speed": -1.02, "lox_pump_inlet_flow": 0.24, "lox_plenum_P": -1.27, "chamber_P": -0.79}},
+    {"id": "TP3", "thrust": 16458, "of": 4.99, "fuel_tank_P": 26.5, "fuel_tank_T": 38.5, "lox_tank_P": 35.8, "lox_tank_T": 174.7,
+     "test": {"fuel_pump_discharge_P": 1112.50, "fuel_pump_inlet_flow": 634.90, "venturi_inlet_P": 839.50, "turbine_inlet_T": 390.35, "fuel_manifold_P": 540.20,
+              "lox_pump_discharge_P": 647.70, "lox_pump_speed": 13040.1, "lox_pump_inlet_flow": 199.61, "lox_plenum_P": 531.50, "chamber_P": 475.48},
+     "rocets_pct": {"fuel_pump_discharge_P": -2.61, "fuel_pump_inlet_flow": 0.89, "venturi_inlet_P": -0.40, "turbine_inlet_T": -2.07, "fuel_manifold_P": -0.70,
+              "lox_pump_discharge_P": -2.08, "lox_pump_speed": -0.91, "lox_pump_inlet_flow": 0.43, "lox_plenum_P": -0.76, "chamber_P": -0.36}},
+    {"id": "TP4", "thrust": 16376, "of": 4.67, "fuel_tank_P": 26.2, "fuel_tank_T": 38.5, "lox_tank_P": 36.0, "lox_tank_T": 174.7,
+     "test": {"fuel_pump_discharge_P": 1143.10, "fuel_pump_inlet_flow": 667.40, "venturi_inlet_P": 860.85, "turbine_inlet_T": 368.93, "fuel_manifold_P": 543.65,
+              "lox_pump_discharge_P": 665.90, "lox_pump_speed": 13236.5, "lox_pump_inlet_flow": 196.34, "lox_plenum_P": 530.93, "chamber_P": 476.80},
+     "rocets_pct": {"fuel_pump_discharge_P": -2.81, "fuel_pump_inlet_flow": 0.91, "venturi_inlet_P": -0.71, "turbine_inlet_T": -2.48, "fuel_manifold_P": -0.46,
+              "lox_pump_discharge_P": -1.76, "lox_pump_speed": -0.94, "lox_pump_inlet_flow": 0.42, "lox_plenum_P": -0.48, "chamber_P": -0.08}},
+    {"id": "TP5", "thrust": 16555, "of": 5.42, "fuel_tank_P": 27.0, "fuel_tank_T": 38.5, "lox_tank_P": 35.5, "lox_tank_T": 174.7,
+     "test": {"fuel_pump_discharge_P": 1076.90, "fuel_pump_inlet_flow": 598.40, "venturi_inlet_P": 817.10, "turbine_inlet_T": 420.63, "fuel_manifold_P": 537.03,
+              "lox_pump_discharge_P": 624.50, "lox_pump_speed": 12798.0, "lox_pump_inlet_flow": 204.33, "lox_plenum_P": 532.04, "chamber_P": 473.03},
+     "rocets_pct": {"fuel_pump_discharge_P": -2.76, "fuel_pump_inlet_flow": 0.67, "venturi_inlet_P": -0.90, "turbine_inlet_T": -2.25, "fuel_manifold_P": -1.28,
+              "lox_pump_discharge_P": -2.72, "lox_pump_speed": -1.01, "lox_pump_inlet_flow": 0.20, "lox_plenum_P": -1.17, "chamber_P": -0.67}}
+  ],
+  "typical_point": {
+    "source": "Binder, Tomsik, Veres, 'RL10A-3-3A Rocket Engine Modeling Project', NASA TM-107318, 1997 (P&W typical operating point)",
+    "chamber_P": 482.0, "of": 5.26, "thrust": 16452, "total_flow_lbs": 37.36, "cstar_eff": 0.9892,
+    "turbine_flow_lbs": 5.89, "jacket_flow_lbs": 5.973, "fuel_pump_flow_lbs": 6.051
+  }
+}

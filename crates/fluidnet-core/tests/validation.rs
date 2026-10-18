@@ -211,3 +211,68 @@ fn expander_start_reaches_the_steady_design_point() {
         assert!(rel(a, b) < 0.003, "{ch}: start ends at {a}, steady {b}");
     }
 }
+
+#[test]
+fn pressure_actuated_valves_follow_and_latch() {
+    let r = run("tests_models/actuated_valve.yaml", Mode::Transient);
+    let t = &r.time;
+    let at = |name: &str, tt: f64| {
+        let i = t.iter().position(|&x| x >= tt - 1e-9).unwrap();
+        r.channel(name).unwrap()[i]
+    };
+    // closed below the set range, fully open above it
+    assert!(at("v_free.opening", 0.2) < 1e-3);
+    assert!(at("v_free.opening", 1.0) > 0.999);
+    // on the way down the free valve closes again, the latching one stays open
+    assert!(at("v_free.opening", 2.0) < 1e-3);
+    assert!(at("v_latch.opening", 2.0) > 0.999);
+    // between the set points the commanded position is linear in the signal;
+    // on a ramp a first-order lag of 20 ms trails the command by 20 ms
+    let p = at("upstream.P", 0.48);
+    let cmd = ((p - 4e5) / 2e5).clamp(0.0, 1.0);
+    assert!((at("v_free.opening", 0.5) - cmd).abs() < 0.03, "{} vs {cmd}", at("v_free.opening", 0.5));
+}
+
+/// RL10A-3-3A at test point 1 of NASA CR-190786 (the calibration point):
+/// the calibrated model must reproduce the measured values it was fitted to,
+/// and stay within the stated accuracy on the values it predicts.
+#[test]
+fn rl10a33a_reproduces_test_point_1() {
+    let r = run("examples/rl10a33a.yaml", Mode::Steady);
+    let g = |n: &str| r.last(n).unwrap();
+    let psi = 6894.757293;
+    let rank = 5.0 / 9.0;
+    let fitted = [
+        ("tca.Pc", 472.35 * psi),
+        ("tca.thrust", 16603.0 * 4.4482216152605),
+        ("tca.OF", 5.63),
+        ("lox_pump.speed", 12697.0 * std::f64::consts::PI / 30.0),
+        ("fuel_pump_discharge.P", 1061.40 * psi),
+        ("venturi_inlet.P", 800.45 * psi),
+        ("turbine_inlet.T", 439.32 * rank),
+        ("fuel_manifold.P", 534.19 * psi),
+        ("lox_plenum.P", 532.50 * psi),
+    ];
+    for (n, v) in fitted {
+        assert!(rel(g(n), v) < 2e-3, "{n}: {} vs {v}", g(n));
+    }
+    // predicted at TP1: LOX pump discharge (published LOX pump design point) and inlet flows
+    assert!(rel(g("lox_discharge.P"), 613.80 * psi) < 0.02);
+    let gpm = 3.785411784e-3 / 60.0;
+    assert!(rel(g("fuel_pump_1.mdot") / g("lh2_tank.rho"), 580.60 * gpm) < 0.015);
+    assert!(rel(g("lox_pump.mdot") / g("lox_tank.rho"), 205.82 * gpm) < 0.015);
+}
+
+/// Start transient: time to accelerate (MES to Pc = 200 psia) inside the range
+/// measured on ground tests and flights (1.43 to 2.56 s, NASA CR-195478), and
+/// the start ends on the steady test point 1 solution.
+#[test]
+fn rl10a33a_start_accelerates_to_mainstage() {
+    let r = run("examples/rl10a33a_start.yaml", Mode::Transient);
+    let psi = 6894.757293;
+    let pc = r.channel("tca.Pc").unwrap();
+    let i = pc.iter().position(|&p| p >= 200.0 * psi).expect("reaches 200 psia");
+    let tta = r.time[i];
+    assert!((1.43..=2.56).contains(&tta), "time to accelerate {tta}");
+    assert!(rel(*pc.last().unwrap(), 472.35 * psi) < 0.005);
+}

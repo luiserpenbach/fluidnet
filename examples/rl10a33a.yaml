@@ -1,0 +1,98 @@
+name: RL10A-3-3A
+description: >
+  Pratt & Whitney RL10A-3-3A closed expander (16,500 lbf, LOX/LH2) built from the
+  published component data in NASA TM-107318 and CR-190786. Two-stage fuel pump,
+  regeneratively cooled tube jacket (180 short tubes down the nozzle, 180 long
+  tubes back to the injector end), flow venturi, two-stage impulse turbine with
+  thrust control bypass valve (TCV), LOX pump geared 1:2.5 to the fuel pump shaft,
+  mixture ratio valve, oxidizer control valve (OCV) with start bleed, coaxial
+  injector and a 4.94 in throat diameter chamber with area ratio 61. Steady
+  operation at test point 1 of CR-190786.
+# Calibrated at TP1 by validation/rl10/rl10.py (all other values are published
+# data or stated assumptions, see docs/VALIDATION.md):
+#   fuel_pump_1/2 design_dp (head factor 0.941 on the published stage heads),
+#   jacket hot_htc_factor, jacket_up_chamber K, turbine area and design_eff,
+#   fuel_injector cd, lox_injector cd, tca cf_eff; valve settings mr_valve and
+#   tcv opening (TCV assumed fully open at TP1).
+components:
+  # ---- fuel side
+  - {id: lh2_tank, type: boundary, fluid: H2, P: 27 psi, T: 21.444 K, ui: {x: 0, y: 40}}
+  - {id: fuel_inlet, type: pipe, P0: 27 psi, T0: 21.5 K, length: 1 m, diameter: 2.84 in, segments: 1, ui: {x: 110, y: 48}}
+  - {id: fuel_pump_1, type: pump, shaft: turbopump, design_speed: 31537 rpm, design_mdot: 6.051 lb/s, design_dp: 491.99 psi, design_eff: 0.581, design_density: 69.656 kg/m3, ui: {x: 230, y: 40}}
+  - {id: interstage, type: junction, P0: 550 psi, T0: 27 K, volume: 0.5 L, ui: {x: 350, y: 55}}
+  - {id: fcv1, type: valve, area: 0.60 in2, cd: 0.6, opening: 0, ui: {x: 330, y: -60}}
+  - {id: fuel_pump_2, type: pump, shaft: turbopump, design_speed: 31537 rpm, design_mdot: 6.051 lb/s, design_dp: 513.86 psi, design_eff: 0.5619, design_density: 68.651 kg/m3, ui: {x: 450, y: 40}}
+  - {id: fuel_pump_discharge, type: junction, P0: 1060 psi, T0: 32 K, volume: 0.3 L, ui: {x: 570, y: 55}}
+  - {id: fcv2, type: valve, area: 0.30 in2, cd: 0.6, opening: 0, ui: {x: 550, y: -60}}
+  - {id: overboard, type: boundary, fluid: H2, P: 0.5 psi, T: 300 K, ui: {x: 440, y: -150}}
+  - {id: fuel_duct, type: pipe, P0: 1050 psi, T0: 32 K, length: 1.5 m, diameter: 1.501 in, K: 1.0, segments: 1, ui: {x: 660, y: 48}}
+  - {id: jacket_inlet, type: junction, P0: 1040 psi, T0: 32 K, volume: 1.5 L, ui: {x: 780, y: 55}}
+  - {id: jacket_down, type: pipe, P0: 1020 psi, T0: 80 K, length: 1.27 m, diameter: 5.5 mm, parallel: 180, segments: 3, wall_thickness: 0.013 in, wall_material: stainless, wall_mass_factor: 1.5, wall_T0: 300 K, hot_chamber: tca, hot_area: 1.154 m2, hot_contraction: 18.0, hot_htc_factor: 0.92238, cool_correction: 0.55, ui: {x: 860, y: 48}}
+  - {id: jacket_turn, type: junction, P0: 1000 psi, T0: 120 K, volume: 2 L, ui: {x: 1000, y: 55}}
+  - {id: jacket_up_nozzle, type: pipe, P0: 980 psi, T0: 160 K, length: 1.27 m, diameter: 5.5 mm, parallel: 180, segments: 3, wall_thickness: 0.013 in, wall_material: stainless, wall_mass_factor: 1.5, wall_T0: 300 K, hot_chamber: tca, hot_area: 1.154 m2, hot_contraction: 18.0, hot_htc_factor: 0.92238, cool_correction: 0.55, ui: {x: 1080, y: 48}}
+  - {id: jacket_up_chamber, type: pipe, P0: 900 psi, T0: 220 K, length: 0.338 m, diameter: 3.5 mm, parallel: 180, segments: 3, K: 8.3074, wall_thickness: 0.013 in, wall_material: stainless, wall_mass_factor: 1.5, wall_T0: 300 K, hot_chamber: tca, hot_area: 0.230 m2, hot_contraction: 2.86, hot_htc_factor: 0.92238, cool_correction: 0.55, ui: {x: 1220, y: 48}}
+  - {id: venturi_inlet, type: junction, P0: 800 psi, T0: 244 K, volume: 1.5 L, ui: {x: 1360, y: 55}}
+  - {id: venturi, type: venturi, area: 1.5 in2, cd: 0.98, recovery: 0.9, ui: {x: 1440, y: 48}}
+  - {id: turbine_inlet, type: junction, P0: 790 psi, T0: 244 K, volume: 0.5 L, ui: {x: 1560, y: 55}}
+  - {id: turbine, type: turbine, shaft: turbopump, area: 1.2025 in2, cd: 1.0, mean_diameter: 5.90 in, design_eff: 0.73612, design_velocity_ratio: 0.35, ui: {x: 1660, y: -20}}
+  - {id: tcv, type: valve, area: 0.0158 in2, cd: 0.9, opening: 1.0000, ui: {x: 1660, y: 130}}
+  - {id: turbine_exit, type: junction, P0: 570 psi, T0: 231 K, volume: 1 L, ui: {x: 1800, y: 55}}
+  - {id: turbine_duct, type: pipe, P0: 560 psi, T0: 231 K, length: 1 m, diameter: 2.40 in, segments: 1, ui: {x: 1880, y: 48}}
+  - {id: fsov, type: valve, area: 3.24 in2, cd: 0.8, opening: 1, ui: {x: 2000, y: 40}}
+  - {id: fuel_manifold, type: junction, P0: 534 psi, T0: 231 K, volume: 0.5 L, ui: {x: 2120, y: 55}}
+  - {id: fuel_injector, type: orifice, area: 2.30 in2, cd: 1.0306, ui: {x: 2200, y: 48}}
+  - {id: tca, type: combustion_chamber, throat_area: 18.85 in2, area_ratio: 62.1, volume: 716 in3, cstar_eff: 0.9892, cf_eff: 0.93205, P0: 472 psi, ui: {x: 2340, y: 160}}
+  - {id: turbopump, type: shaft, inertia: 0.008768 kg m2, bearing_torque: 2.26 N m, N0: 31700 rpm, ui: {x: 600, y: 230}}
+  # ---- oxidizer side
+  - {id: lox_tank, type: boundary, fluid: O2, P: 35.8 psi, T: 97.056 K, ui: {x: 0, y: 340}}
+  - {id: lox_inlet, type: pipe, P0: 35.8 psi, T0: 97.1 K, length: 1 m, diameter: 2.84 in, segments: 1, ui: {x: 110, y: 348}}
+  - {id: lox_pump, type: pump, shaft: turbopump, ratio: 0.4, design_speed: 12615 rpm, design_mdot: 31.40 lb/s, design_dp: 581.38 psi, design_eff: 0.6422, design_density: 1106.47 kg/m3, ui: {x: 230, y: 340}}
+  - {id: lox_discharge, type: junction, P0: 614 psi, T0: 98 K, volume: 0.5 L, ui: {x: 350, y: 355}}
+  - {id: lox_duct, type: pipe, P0: 600 psi, T0: 98 K, length: 1.2 m, diameter: 1.6 in, K: 1.0, segments: 1, ui: {x: 440, y: 348}}
+  - {id: mr_valve, type: valve, area: 2.08 in2, cd: 0.8, opening: 0.4069, ui: {x: 500, y: 430}}
+  - {id: ocv_inlet, type: junction, P0: 590 psi, T0: 98 K, volume: 0.2 L, ui: {x: 560, y: 355}}
+  - {id: ocv, type: valve, area: 2.08 in2, cd: 0.8, opening: 1, ui: {x: 660, y: 320}}
+  - {id: ocv_bleed, type: orifice, area: 0.615 in2, cd: 0.7, ui: {x: 660, y: 420}}
+  - {id: lox_plenum, type: junction, P0: 532 psi, T0: 98 K, volume: 1 L, ui: {x: 1900, y: 355}}
+  - {id: lox_injector, type: orifice, area: 1.0 in2, cd: 0.74154, ui: {x: 2200, y: 348}}
+connections:
+  - [lh2_tank, fuel_inlet.in]
+  - [fuel_inlet.out, fuel_pump_1.in]
+  - [fuel_pump_1.out, interstage]
+  - [interstage, fcv1.in]
+  - [fcv1.out, overboard]
+  - [interstage, fuel_pump_2.in]
+  - [fuel_pump_2.out, fuel_pump_discharge]
+  - [fuel_pump_discharge, fcv2.in]
+  - [fcv2.out, overboard]
+  - [fuel_pump_discharge, fuel_duct.in]
+  - [fuel_duct.out, jacket_inlet]
+  - [jacket_inlet, jacket_down.in]
+  - [jacket_down.out, jacket_turn]
+  - [jacket_turn, jacket_up_nozzle.in]
+  - [jacket_up_nozzle.out, jacket_up_chamber.in]
+  - [jacket_up_chamber.out, venturi_inlet]
+  - [venturi_inlet, venturi.in]
+  - [venturi.out, turbine_inlet]
+  - [turbine_inlet, turbine.in]
+  - [turbine_inlet, tcv.in]
+  - [turbine.out, turbine_exit]
+  - [tcv.out, turbine_exit]
+  - [turbine_exit, turbine_duct.in]
+  - [turbine_duct.out, fsov.in]
+  - [fsov.out, fuel_manifold]
+  - [fuel_manifold, fuel_injector.in]
+  - [fuel_injector.out, tca.fuel]
+  - [lox_tank, lox_inlet.in]
+  - [lox_inlet.out, lox_pump.in]
+  - [lox_pump.out, lox_discharge]
+  - [lox_discharge, lox_duct.in]
+  - [lox_duct.out, mr_valve.in]
+  - [mr_valve.out, ocv_inlet]
+  - [ocv_inlet, ocv.in]
+  - [ocv_inlet, ocv_bleed.in]
+  - [ocv.out, lox_plenum]
+  - [ocv_bleed.out, lox_plenum]
+  - [lox_plenum, lox_injector.in]
+  - [lox_injector.out, tca.ox]
+simulation: {t_end: 1, rtol: 1e-4}

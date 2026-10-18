@@ -167,7 +167,7 @@ dependencies = [
 
 [[package]]
 name = "fluidnet-cli"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "fluidnet-core",
  "serde_json",
@@ -175,7 +175,7 @@ dependencies = [
 
 [[package]]
 name = "fluidnet-core"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "faer",
  "serde",
@@ -185,7 +185,7 @@ dependencies = [
 
 [[package]]
 name = "fluidnet-py"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "fluidnet-core",
  "pyo3",
@@ -194,7 +194,7 @@ dependencies = [
 
 [[package]]
 name = "fluidnet-wasm"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "fluidnet-core",
  "serde_json",

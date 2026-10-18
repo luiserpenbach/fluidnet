@@ -1,0 +1,17 @@
+name: pressure-actuated valves
+description: Two valves sense the same upstream pressure, which rises through their set range and falls back. The latching valve stays open; the other follows the pressure with its actuator lag.
+components:
+  - {id: source, type: boundary, fluid: H2O, P: [[0, 2 bar], [1, 10 bar], [2, 2 bar]], T: 293.15 K}
+  - {id: feed, type: orifice, diameter: 10 mm, cd: 0.8}
+  - {id: upstream, type: junction, volume: 0.5 L}
+  - {id: v_latch, type: valve, diameter: 4 mm, cd: 0.8, opening: 0, sense: upstream, sense_lo: 4 bar, sense_hi: 6 bar, opening_lo: 0, opening_hi: 1, actuator_time: 20 ms, latch: true}
+  - {id: v_free, type: valve, diameter: 4 mm, cd: 0.8, opening: 0, sense: upstream, sense_lo: 4 bar, sense_hi: 6 bar, opening_lo: 0, opening_hi: 1, actuator_time: 20 ms}
+  - {id: sink, type: boundary, fluid: H2O, P: 1 bar, T: 293.15 K}
+connections:
+  - [source, feed.in]
+  - [feed.out, upstream]
+  - [upstream, v_latch.in]
+  - [upstream, v_free.in]
+  - [v_latch.out, sink]
+  - [v_free.out, sink]
+simulation: {t_end: 2, output_dt: 0.005, rtol: 1e-5}

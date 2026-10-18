@@ -34,13 +34,14 @@ fn library(dir: &str) -> PyResult<FluidLibrary> {
 /// Run a model given as YAML or JSON text.
 /// Returns (metadata JSON, data bytes: time then each channel as float64).
 #[pyfunction]
-#[pyo3(signature = (model, mode, fluids_dir, steady_time=None))]
+#[pyo3(signature = (model, mode, fluids_dir, steady_time=None, init=None))]
 fn run(
     py: Python<'_>,
     model: &str,
     mode: &str,
     fluids_dir: &str,
     steady_time: Option<f64>,
+    init: Option<Vec<(String, f64)>>,
 ) -> PyResult<(String, PyObject)> {
     let lib = library(fluids_dir)?;
     let model = Model::parse(model).map_err(|e| PyValueError::new_err(e.to_string()))?;
@@ -54,7 +55,10 @@ fn run(
         }
     };
     let res = py.allow_threads(|| -> Result<_, String> {
-        let net = Network::compile(&model, &lib).map_err(|e| e.to_string())?;
+        let mut net = Network::compile(&model, &lib).map_err(|e| e.to_string())?;
+        if let Some(init) = &init {
+            net.apply_init(init);
+        }
         let t0 = std::time::Instant::now();
         let r = if steady {
             run_steady(&net, steady_time.unwrap_or(net.sim.steady_time))
@@ -79,6 +83,7 @@ fn run(
         "channels": r.channels.iter().map(|c| serde_json::json!({"name": c.name, "unit": c.unit})).collect::<Vec<_>>(),
         "warnings": r.warnings, "stats": r.stats, "steady": r.steady, "error": r.error,
         "components": r.components, "n_states": r.n_states, "elapsed_s": elapsed,
+        "state_names": r.state_names, "final_state": r.final_state,
     });
     Ok((meta.to_string(), PyBytes::new_bound(py, &data).into()))
 }

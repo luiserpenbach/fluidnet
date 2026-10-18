@@ -1,0 +1,511 @@
+{
+ "calibration": {
+  "cal": {
+   "htc_factor": 0.921563732706263,
+   "jacket_K": 8.304061154105788,
+   "turbine_area": 0.0007758008870127953,
+   "fuel_inj_cd": 1.0302064680674996,
+   "lox_inj_cd": 0.741542932793714,
+   "head_factor": 0.9567260266123347,
+   "turbine_eff": 0.7457725186804415,
+   "cf_eff": 0.9320459645811218
+  },
+  "ctrl_tp1": {
+   "ocv": 0.40686941099887314,
+   "tcv": 1.0
+  },
+  "cf_eff": 0.9320459645811218,
+  "residual_pct": {
+   "of": 5.363777312576245e-12,
+   "thrust": -7.712874420865403e-12,
+   "turbine_inlet_T": 4.438061702007e-12,
+   "dp_jacket": -4.705184316510646e-12,
+   "dp_turbine": -2.2202792614452166e-12,
+   "dp_fuel_inj": -4.871767787229662e-12,
+   "dp_lox_inj": -1.2285360684796417e-12,
+   "lox_pump_speed": -5.200387126779128e-12,
+   "chamber_P": -7.834246994471475e-12
+  },
+  "targets": {
+   "of": 5.63,
+   "thrust": 16603,
+   "turbine_inlet_T": 439.32,
+   "dp_jacket": 260.95000000000005,
+   "dp_turbine": 266.26,
+   "dp_fuel_inj": 61.84000000000003,
+   "dp_lox_inj": 60.14999999999998,
+   "lox_pump_speed": 12697.0,
+   "chamber_P": 472.35
+  },
+  "typical_check": {
+   "chamber_P": 469.8832961652335,
+   "cf": 1.8574508884073844,
+   "bypass": 0.010472130988868901,
+   "turbine_pr": 1.3688402368320385,
+   "jacket_Q_btus": 8350.006702275121,
+   "jacket_dp": 259.3777818763081,
+   "mdot": 36.91887390181319
+  }
+ },
+ "points": [
+  {
+   "id": "TP1",
+   "ctrl": {
+    "ocv": 0.40686941099887314,
+    "tcv": 0.9999999999
+   },
+   "model": {
+    "fuel_pump_discharge_P": 1061.400000003994,
+    "fuel_pump_inlet_flow": 586.2102088145637,
+    "venturi_inlet_P": 800.4500000031234,
+    "turbine_inlet_T": 439.31999999955764,
+    "fuel_manifold_P": 534.1900000016507,
+    "lox_pump_discharge_P": 622.9203944670114,
+    "lox_pump_speed": 12697.000000024707,
+    "lox_pump_inlet_flow": 207.33349833773815,
+    "lox_plenum_P": 532.5000000017332,
+    "chamber_P": 472.35000000142117,
+    "thrust": 16603.000000048174,
+    "of": 5.629999999992586,
+    "bypass": 0.011687218665560986,
+    "fuel_pump_speed": 31742.500000061766,
+    "jacket_Q": 8809487.478868436,
+    "jacket_dp": 251.84589748585222,
+    "turbine_pr": 1.3545442903602178,
+    "turbine_eff": 0.7403388394849895,
+    "tw_max": 976.9724478788335,
+    "cf_ideal": 2.0006631050138752,
+    "isp": 441.8514563727915,
+    "Tc": 3333.857828715138,
+    "cstar": 2323.730041667751,
+    "jacket_in_T": 83.08456102534956,
+    "mdot": 37.575976633287745
+   },
+   "test": {
+    "fuel_pump_discharge_P": 1061.4,
+    "fuel_pump_inlet_flow": 580.6,
+    "venturi_inlet_P": 800.45,
+    "turbine_inlet_T": 439.32,
+    "fuel_manifold_P": 534.19,
+    "lox_pump_discharge_P": 613.8,
+    "lox_pump_speed": 12697.0,
+    "lox_pump_inlet_flow": 205.82,
+    "lox_plenum_P": 532.5,
+    "chamber_P": 472.35
+   },
+   "rocets_pct": {
+    "fuel_pump_discharge_P": -2.65,
+    "fuel_pump_inlet_flow": 1.08,
+    "venturi_inlet_P": -0.06,
+    "turbine_inlet_T": -3.24,
+    "fuel_manifold_P": -1.17,
+    "lox_pump_discharge_P": -2.54,
+    "lox_pump_speed": -0.84,
+    "lox_pump_inlet_flow": 0.57,
+    "lox_plenum_P": -1.24,
+    "chamber_P": -0.77
+   },
+   "err_pct": {
+    "fuel_pump_discharge_P": 3.7627836905599873e-10,
+    "fuel_pump_inlet_flow": 0.9662777841136125,
+    "venturi_inlet_P": 3.901953267194649e-10,
+    "turbine_inlet_T": -1.0069095091842119e-10,
+    "fuel_manifold_P": 3.08994776555185e-10,
+    "lox_pump_discharge_P": 1.485890268330314,
+    "lox_pump_speed": 1.9459189626182066e-10,
+    "lox_pump_inlet_flow": 0.7353504701866466,
+    "lox_plenum_P": 3.254752753175655e-10,
+    "chamber_P": 3.008663734389883e-10
+   }
+  },
+  {
+   "id": "TP2",
+   "ctrl": {
+    "ocv": 0.39177985067418053,
+    "tcv": 0.9571845453827688
+   },
+   "model": {
+    "fuel_pump_discharge_P": 1066.994335507243,
+    "fuel_pump_inlet_flow": 591.7650150355382,
+    "venturi_inlet_P": 804.0452516445912,
+    "turbine_inlet_T": 436.15511459377825,
+    "fuel_manifold_P": 534.9269771826642,
+    "lox_pump_discharge_P": 627.0936912195831,
+    "lox_pump_speed": 12732.546419682332,
+    "lox_pump_inlet_flow": 206.32412327977394,
+    "lox_plenum_P": 531.9492777298565,
+    "chamber_P": 472.3751442232056,
+    "thrust": 16588.000000000604,
+    "of": 5.55000000000188,
+    "bypass": 0.011192425704261447,
+    "fuel_pump_speed": 31831.366049205826,
+    "jacket_Q": 8820577.066097707,
+    "jacket_dp": 253.69568641519356,
+    "turbine_pr": 1.357720409442167,
+    "turbine_eff": 0.7406364451578064,
+    "tw_max": 972.6653467817133,
+    "cf_ideal": 1.9987492057739933,
+    "isp": 442.6495839614427,
+    "Tc": 3322.592815777734,
+    "cstar": 2330.1565580531915,
+    "jacket_in_T": 82.97691249003589,
+    "mdot": 37.474337717767995
+   },
+   "test": {
+    "fuel_pump_discharge_P": 1068.9,
+    "fuel_pump_inlet_flow": 588.9,
+    "venturi_inlet_P": 808.56,
+    "turbine_inlet_T": 432.92,
+    "fuel_manifold_P": 535.67,
+    "lox_pump_discharge_P": 619.1,
+    "lox_pump_speed": 12747.0,
+    "lox_pump_inlet_flow": 205.59,
+    "lox_plenum_P": 532.67,
+    "chamber_P": 472.96
+   },
+   "rocets_pct": {
+    "fuel_pump_discharge_P": -2.8,
+    "fuel_pump_inlet_flow": 0.77,
+    "venturi_inlet_P": -0.57,
+    "turbine_inlet_T": -3.13,
+    "fuel_manifold_P": -1.27,
+    "lox_pump_discharge_P": -2.78,
+    "lox_pump_speed": -1.02,
+    "lox_pump_inlet_flow": 0.24,
+    "lox_plenum_P": -1.27,
+    "chamber_P": -0.79
+   },
+   "err_pct": {
+    "fuel_pump_discharge_P": -0.17828276665329484,
+    "fuel_pump_inlet_flow": 0.48650280786861083,
+    "venturi_inlet_P": -0.5583689961671066,
+    "turbine_inlet_T": 0.7472776942109939,
+    "fuel_manifold_P": -0.1387090591848925,
+    "lox_pump_discharge_P": 1.2911793279895123,
+    "lox_pump_speed": -0.11338809380770165,
+    "lox_pump_inlet_flow": 0.35708121979373486,
+    "lox_plenum_P": -0.1353037096407688,
+    "chamber_P": -0.12365861315848493
+   }
+  },
+  {
+   "id": "TP3",
+   "ctrl": {
+    "ocv": 0.30629439314006396,
+    "tcv": 0.34595716121980075
+   },
+   "model": {
+    "fuel_pump_discharge_P": 1110.2394683118282,
+    "fuel_pump_inlet_flow": 635.1821250719948,
+    "venturi_inlet_P": 832.577991041704,
+    "turbine_inlet_T": 411.2063769217789,
+    "fuel_manifold_P": 540.5561841232872,
+    "lox_pump_discharge_P": 662.7311458828627,
+    "lox_pump_speed": 13002.267024005916,
+    "lox_pump_inlet_flow": 199.30214950584468,
+    "lox_plenum_P": 528.2659976476467,
+    "chamber_P": 472.61185460841796,
+    "thrust": 16457.999999999156,
+    "of": 4.989999999998837,
+    "bypass": 0.004074421633817269,
+    "fuel_pump_speed": 32505.66756001479,
+    "jacket_Q": 8860051.997981064,
+    "jacket_dp": 267.19496510348733,
+    "turbine_pr": 1.3836498889452409,
+    "turbine_eff": 0.7427403754047947,
+    "tw_max": 936.3639503424074,
+    "cf_ideal": 1.9820917874214121,
+    "isp": 446.99547899138923,
+    "Tc": 3222.0889049490756,
+    "cstar": 2372.80863215354,
+    "jacket_in_T": 82.00860996197962,
+    "mdot": 36.81916433950374
+   },
+   "test": {
+    "fuel_pump_discharge_P": 1112.5,
+    "fuel_pump_inlet_flow": 634.9,
+    "venturi_inlet_P": 839.5,
+    "turbine_inlet_T": 390.35,
+    "fuel_manifold_P": 540.2,
+    "lox_pump_discharge_P": 647.7,
+    "lox_pump_speed": 13040.1,
+    "lox_pump_inlet_flow": 199.61,
+    "lox_plenum_P": 531.5,
+    "chamber_P": 475.48
+   },
+   "rocets_pct": {
+    "fuel_pump_discharge_P": -2.61,
+    "fuel_pump_inlet_flow": 0.89,
+    "venturi_inlet_P": -0.4,
+    "turbine_inlet_T": -2.07,
+    "fuel_manifold_P": -0.7,
+    "lox_pump_discharge_P": -2.08,
+    "lox_pump_speed": -0.91,
+    "lox_pump_inlet_flow": 0.43,
+    "lox_plenum_P": -0.76,
+    "chamber_P": -0.36
+   },
+   "err_pct": {
+    "fuel_pump_discharge_P": -0.2031938596109479,
+    "fuel_pump_inlet_flow": 0.04443614301383987,
+    "venturi_inlet_P": -0.8245394828226363,
+    "turbine_inlet_T": 5.342993959723033,
+    "fuel_manifold_P": 0.06593560223752451,
+    "lox_pump_discharge_P": 2.3206956743650897,
+    "lox_pump_speed": -0.29012795909605243,
+    "lox_pump_inlet_flow": -0.15422598775378585,
+    "lox_plenum_P": -0.6084670465387181,
+    "chamber_P": -0.6032105223315515
+   }
+  },
+  {
+   "id": "TP4",
+   "ctrl": {
+    "ocv": 0.27145683962841366,
+    "tcv": 7.556825395701961e-09
+   },
+   "model": {
+    "fuel_pump_discharge_P": 1128.4703353080558,
+    "fuel_pump_inlet_flow": 658.7499487993362,
+    "venturi_inlet_P": 843.9870663462827,
+    "turbine_inlet_T": 396.0480333748606,
+    "fuel_manifold_P": 540.1101594633375,
+    "lox_pump_discharge_P": 680.1293319357912,
+    "lox_pump_speed": 13119.822848289361,
+    "lox_pump_inlet_flow": 194.09561303510748,
+    "lox_plenum_P": 522.1447925423586,
+    "chamber_P": 469.3203640184945,
+    "thrust": 16249.7662535148,
+    "of": 4.686066387057027,
+    "bypass": 1.1825424854612469e-08,
+    "fuel_pump_speed": 32799.5571207234,
+    "jacket_Q": 8796601.634937974,
+    "jacket_dp": 273.3459296863094,
+    "turbine_pr": 1.3991242369907007,
+    "turbine_eff": 0.7436594788329678,
+    "tw_max": 910.6004945484354,
+    "cf_ideal": 1.9707386515391017,
+    "isp": 448.32425066932984,
+    "Tc": 3149.911447045238,
+    "cstar": 2393.5722544786036,
+    "jacket_in_T": 81.30000601641497,
+    "mdot": 36.245566081367585
+   },
+   "test": {
+    "fuel_pump_discharge_P": 1143.1,
+    "fuel_pump_inlet_flow": 667.4,
+    "venturi_inlet_P": 860.85,
+    "turbine_inlet_T": 368.93,
+    "fuel_manifold_P": 543.65,
+    "lox_pump_discharge_P": 665.9,
+    "lox_pump_speed": 13236.5,
+    "lox_pump_inlet_flow": 196.34,
+    "lox_plenum_P": 530.93,
+    "chamber_P": 476.8
+   },
+   "rocets_pct": {
+    "fuel_pump_discharge_P": -2.81,
+    "fuel_pump_inlet_flow": 0.91,
+    "venturi_inlet_P": -0.71,
+    "turbine_inlet_T": -2.48,
+    "fuel_manifold_P": -0.46,
+    "lox_pump_discharge_P": -1.76,
+    "lox_pump_speed": -0.94,
+    "lox_pump_inlet_flow": 0.42,
+    "lox_plenum_P": -0.48,
+    "chamber_P": -0.08
+   },
+   "err_pct": {
+    "fuel_pump_discharge_P": -1.2798236980092794,
+    "fuel_pump_inlet_flow": -1.296081989910672,
+    "venturi_inlet_P": -1.9588701462179563,
+    "turbine_inlet_T": 7.350454930436831,
+    "fuel_manifold_P": -0.6511249032764639,
+    "lox_pump_discharge_P": 2.1368571761212296,
+    "lox_pump_speed": -0.8814803891560382,
+    "lox_pump_inlet_flow": -1.1431124401000954,
+    "lox_plenum_P": -1.6546828127326347,
+    "chamber_P": -1.5687156001479674
+   }
+  },
+  {
+   "id": "TP5",
+   "ctrl": {
+    "ocv": 0.36912535550885783,
+    "tcv": 0.8957157941807171
+   },
+   "model": {
+    "fuel_pump_discharge_P": 1075.7293834717498,
+    "fuel_pump_inlet_flow": 600.3377548260928,
+    "venturi_inlet_P": 809.6073649573391,
+    "turbine_inlet_T": 430.664450896073,
+    "fuel_manifold_P": 535.9504210101233,
+    "lox_pump_discharge_P": 634.0112768113524,
+    "lox_pump_speed": 12781.494171487871,
+    "lox_pump_inlet_flow": 204.61823392190905,
+    "lox_plenum_P": 530.8566305481602,
+    "chamber_P": 472.2494778658706,
+    "thrust": 16555.00000000015,
+    "of": 5.420000000000109,
+    "bypass": 0.010481200756775519,
+    "fuel_pump_speed": 31953.73542871968,
+    "jacket_Q": 8831830.091332616,
+    "jacket_dp": 256.62941818538326,
+    "turbine_pr": 1.3628094104059332,
+    "turbine_eff": 0.7410937243925882,
+    "tw_max": 964.8988389225983,
+    "cf_ideal": 1.9953037265808482,
+    "isp": 443.8267084041782,
+    "Tc": 3302.1188761074445,
+    "cstar": 2340.3874730918496,
+    "jacket_in_T": 82.69481110743968,
+    "mdot": 37.300594323233156
+   },
+   "test": {
+    "fuel_pump_discharge_P": 1076.9,
+    "fuel_pump_inlet_flow": 598.4,
+    "venturi_inlet_P": 817.1,
+    "turbine_inlet_T": 420.63,
+    "fuel_manifold_P": 537.03,
+    "lox_pump_discharge_P": 624.5,
+    "lox_pump_speed": 12798.0,
+    "lox_pump_inlet_flow": 204.33,
+    "lox_plenum_P": 532.04,
+    "chamber_P": 473.03
+   },
+   "rocets_pct": {
+    "fuel_pump_discharge_P": -2.76,
+    "fuel_pump_inlet_flow": 0.67,
+    "venturi_inlet_P": -0.9,
+    "turbine_inlet_T": -2.25,
+    "fuel_manifold_P": -1.28,
+    "lox_pump_discharge_P": -2.72,
+    "lox_pump_speed": -1.01,
+    "lox_pump_inlet_flow": 0.2,
+    "lox_plenum_P": -1.17,
+    "chamber_P": -0.67
+   },
+   "err_pct": {
+    "fuel_pump_discharge_P": -0.1087024355325769,
+    "fuel_pump_inlet_flow": 0.32382266478823996,
+    "venturi_inlet_P": -0.9169789551659449,
+    "turbine_inlet_T": 2.3855766103399656,
+    "fuel_manifold_P": -0.20102768744329416,
+    "lox_pump_discharge_P": 1.5230227079827776,
+    "lox_pump_speed": -0.12897193711617888,
+    "lox_pump_inlet_flow": 0.1410629481275582,
+    "lox_plenum_P": -0.22242114349292924,
+    "chamber_P": -0.16500478492471907
+   }
+  }
+ ],
+ "stats": {
+  "fluidnet_tp2_5": {
+   "n": 40,
+   "mean_abs": 1.0156343621747908,
+   "rms": 1.739829879024391,
+   "max_abs": 7.350454930436831,
+   "within_1": 0.675,
+   "within_2": 0.875,
+   "within_3": 0.95
+  },
+  "rocets_tp2_5": {
+   "n": 40,
+   "mean_abs": 1.26325,
+   "rms": 1.5464079345373263,
+   "max_abs": 3.13,
+   "within_1": 0.55,
+   "within_2": 0.725,
+   "within_3": 0.975
+  },
+  "fluidnet_tp1": {
+   "n": 10,
+   "mean_abs": 0.3187518524627666,
+   "rms": 0.6068198216599362,
+   "max_abs": 1.485890268330314,
+   "within_1": 0.9,
+   "within_2": 1.0,
+   "within_3": 1.0
+  },
+  "rocets_all": {
+   "n": 50,
+   "mean_abs": 1.2938,
+   "rms": 1.5832037139926118,
+   "max_abs": 3.24,
+   "within_1": 0.52,
+   "within_2": 0.72,
+   "within_3": 0.96
+  },
+  "fluidnet_anchored": {
+   "n": 40,
+   "mean_abs": 0.9798148693106162,
+   "rms": 1.7026581028546253,
+   "max_abs": 7.350454930556734,
+   "within_1": 0.775,
+   "within_2": 0.9,
+   "within_3": 0.95
+  },
+  "rocets_anchored": {
+   "n": 40,
+   "mean_abs": 0.37710140332612047,
+   "rms": 0.5186433990088736,
+   "max_abs": 1.5764629178941862,
+   "within_1": 0.925,
+   "within_2": 1.0,
+   "within_3": 1.0
+  },
+  "per_param": {
+   "fuel_pump_discharge_P": {
+    "fluidnet_mean_abs": 0.44250068995152475,
+    "rocets_mean_abs": 2.745,
+    "fluidnet_max_abs": 1.2798236980092794
+   },
+   "fuel_pump_inlet_flow": {
+    "fluidnet_mean_abs": 0.5377109013953406,
+    "rocets_mean_abs": 0.81,
+    "fluidnet_max_abs": 1.296081989910672
+   },
+   "venturi_inlet_P": {
+    "fluidnet_mean_abs": 1.064689395093411,
+    "rocets_mean_abs": 0.645,
+    "fluidnet_max_abs": 1.9588701462179563
+   },
+   "turbine_inlet_T": {
+    "fluidnet_mean_abs": 3.9565757986777057,
+    "rocets_mean_abs": 2.4825,
+    "fluidnet_max_abs": 7.350454930436831
+   },
+   "fuel_manifold_P": {
+    "fluidnet_mean_abs": 0.2641993130355438,
+    "rocets_mean_abs": 0.9275,
+    "fluidnet_max_abs": 0.6511249032764639
+   },
+   "lox_pump_discharge_P": {
+    "fluidnet_mean_abs": 1.8179387216146523,
+    "rocets_mean_abs": 2.335,
+    "fluidnet_max_abs": 2.3206956743650897
+   },
+   "lox_pump_speed": {
+    "fluidnet_mean_abs": 0.3534920947939928,
+    "rocets_mean_abs": 0.97,
+    "fluidnet_max_abs": 0.8814803891560382
+   },
+   "lox_pump_inlet_flow": {
+    "fluidnet_mean_abs": 0.4488706489437936,
+    "rocets_mean_abs": 0.32249999999999995,
+    "fluidnet_max_abs": 1.1431124401000954
+   },
+   "lox_plenum_P": {
+    "fluidnet_mean_abs": 0.6552186781012628,
+    "rocets_mean_abs": 0.92,
+    "fluidnet_max_abs": 1.6546828127326347
+   },
+   "chamber_P": {
+    "fluidnet_mean_abs": 0.6151473801406807,
+    "rocets_mean_abs": 0.475,
+    "fluidnet_max_abs": 1.5687156001479674
+   }
+  }
+ },
+ "shutoff_head": 1.03
+}

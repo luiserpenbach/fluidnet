@@ -40,6 +40,8 @@ pub enum StateKind {
     Speed,
     WallTemp,
     MixFrac,
+    /// Valve actuator position (0..1).
+    Position,
 }
 
 #[derive(Debug, Clone)]
@@ -121,6 +123,38 @@ pub enum Ctrl {
         band: f64,
         leak: f64,
     },
+    /// Opening set by an actuator state driven by a sensed pressure.
+    Actuated {
+        act: usize,
+        charac: Charac,
+        leak: f64,
+    },
+}
+
+/// Pressure signal read by a valve actuator.
+#[derive(Debug, Clone, Copy)]
+pub enum Sense {
+    Node(usize),
+    Chamber(usize),
+}
+
+/// Valve actuator: first-order lag towards a position that is a linear
+/// function of a sensed pressure (or pressure difference).
+#[derive(Debug, Clone)]
+pub struct Actuator {
+    pub name: String,
+    pub state: usize,
+    pub sense: Sense,
+    pub sense_ref: Option<Sense>,
+    /// signal range [s_lo, s_hi] mapped to position [u_lo, u_hi]
+    pub s_lo: f64,
+    pub s_hi: f64,
+    pub u_lo: f64,
+    pub u_hi: f64,
+    pub tau: f64,
+    /// one-way motion (towards u_hi) in transients
+    pub latch: bool,
+    pub u0: f64,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -335,6 +369,9 @@ pub struct Network {
     pub shafts: Vec<Shaft>,
     pub walls: Vec<Wall>,
     pub chambers: Vec<Chamber>,
+    pub actuators: Vec<Actuator>,
+    /// Latching actuators move one way only (off for steady-state solves).
+    pub latch_active: bool,
     pub comps: Vec<CompInfo>,
     pub n_states: usize,
     pub state_kind: Vec<StateKind>,
@@ -410,12 +447,132 @@ impl Eval {
 }
 
 #[inline]
+pub(crate) fn charac_eval(c: Charac, s: f64) -> f64 {
+    match c {
+        Charac::Linear => s,
+        Charac::EqualPct => (50f64.powf(s) - 1.0) / 49.0,
+        Charac::Quick => s.sqrt(),
+    }
+}
+
+#[inline]
 pub(crate) fn smoothstep(x: f64) -> f64 {
     let t = x.clamp(0.0, 1.0);
     t * t * (3.0 - 2.0 * t)
 }
 
 impl Network {
+    /// Mass-flow guess for a cold steady-state solve: pumps at their design
+    /// flow (and imposed mass flows), propagated through the network by mass
+    /// balance, split at branch points in proportion to the effective flow
+    /// areas. Returns (state index, value) for pipe and pump flow states.
+    pub fn flow_guess(&self, t: f64, y: &[f64]) -> Vec<(usize, f64)> {
+        let nb = self.branches.len();
+        let mut ev = Eval::new(self);
+        if self.evaluate(t, y, &mut ev).is_err() {
+            return vec![];
+        }
+        let mut g: Vec<Option<f64>> = vec![None; nb];
+        let mut weight = vec![0.0; nb];
+        let mut seeded = false;
+        for (k, b) in self.branches.iter().enumerate() {
+            weight[k] = match &b.kind {
+                BranchKind::Pipe { area, .. } => *area,
+                BranchKind::Pump { map, .. } => {
+                    let rho = ev.props[b.a].rho;
+                    if rho > 0.0 && map.q_d > 0.0 {
+                        g[k] = Some(map.q_d * rho);
+                        seeded = true;
+                    }
+                    1.0
+                }
+                BranchKind::MassFlow { mdot } => {
+                    g[k] = Some(mdot.at(t));
+                    seeded = true;
+                    1.0
+                }
+                BranchKind::Turbine { cda, .. } => *cda,
+                BranchKind::Restriction { cda, ctrl, .. } => {
+                    let u = match ctrl {
+                        Ctrl::Fixed | Ctrl::Check { .. } | Ctrl::Regulator { .. } => 1.0,
+                        Ctrl::Valve { opening, charac, .. } => {
+                            charac_eval(*charac, opening.at(t).clamp(0.0, 1.0))
+                        }
+                        Ctrl::Actuated { act, charac, .. } => {
+                            charac_eval(*charac, y[self.actuators[*act].state].clamp(0.0, 1.0))
+                        }
+                    };
+                    if u <= 1e-4 {
+                        g[k] = Some(0.0);
+                    }
+                    cda * u
+                }
+            };
+        }
+        if !seeded {
+            return vec![];
+        }
+        loop {
+            let mut changed = false;
+            for n in &self.nodes {
+                if !matches!(n.kind, NodeKind::Volume { .. }) {
+                    continue;
+                }
+                let mut sum_in = 0.0;
+                let mut unknown: Vec<(usize, f64)> = Vec::new();
+                for &(k, sgn) in &n.conn {
+                    match g[k] {
+                        Some(v) => sum_in += sgn * v,
+                        None => unknown.push((k, sgn)),
+                    }
+                }
+                if unknown.is_empty() || (unknown.len() > 1 && sum_in.abs() < 1e-12) {
+                    continue;
+                }
+                let wsum: f64 = unknown.iter().map(|&(k, _)| weight[k].max(1e-12)).sum();
+                for &(k, sgn) in &unknown {
+                    // outflow share of the known net inflow
+                    let share = sum_in * weight[k].max(1e-12) / wsum;
+                    g[k] = Some(-share / sgn);
+                }
+                changed = true;
+            }
+            if !changed {
+                break;
+            }
+        }
+        let mut out = Vec::new();
+        for (k, b) in self.branches.iter().enumerate() {
+            if let (BranchKind::Pipe { sm, .. } | BranchKind::Pump { sm, .. }, Some(v)) = (&b.kind, g[k]) {
+                if v.is_finite() {
+                    out.push((*sm, v));
+                }
+            }
+        }
+        out
+    }
+
+    /// Overwrite initial state values by state name (warm start from an
+    /// earlier run of the same model). Returns how many names matched.
+    pub fn apply_init(&mut self, init: &[(String, f64)]) -> usize {
+        let idx: std::collections::HashMap<&str, usize> = self
+            .state_names
+            .iter()
+            .enumerate()
+            .map(|(i, n)| (n.as_str(), i))
+            .collect();
+        let mut hit = 0;
+        for (name, v) in init {
+            if let Some(&i) = idx.get(name.as_str()) {
+                if v.is_finite() {
+                    self.y0[i] = *v;
+                    hit += 1;
+                }
+            }
+        }
+        hit
+    }
+
     pub fn node_index(&self, name: &str) -> Option<usize> {
         self.nodes.iter().position(|n| n.name == name)
     }
@@ -516,12 +673,7 @@ impl Network {
                             leak,
                         } => {
                             let s = opening.at(t).clamp(0.0, 1.0);
-                            let f = match charac {
-                                Charac::Linear => s,
-                                Charac::EqualPct => (50f64.powf(s) - 1.0) / 49.0,
-                                Charac::Quick => s.sqrt(),
-                            };
-                            f.max(*leak)
+                            charac_eval(*charac, s).max(*leak)
                         }
                         Ctrl::Check { crack, full, leak } => {
                             let dp = pa.p - pb.p;
@@ -530,6 +682,10 @@ impl Network {
                         Ctrl::Regulator { set, band, leak } => {
                             let e = (set.at(t) - pb.p) / band + 0.5;
                             leak + (1.0 - leak) * smoothstep(e)
+                        }
+                        Ctrl::Actuated { act, charac, leak } => {
+                            let s = y[self.actuators[*act].state].clamp(0.0, 1.0);
+                            charac_eval(*charac, s).max(*leak)
                         }
                     };
                     ev.opening[k] = u;
@@ -815,7 +971,38 @@ impl Network {
             dy[ch.sp] = e.rt / ch.vol * (e.mf + e.mo - e.mdot);
             dy[ch.sp + 1] = (e.mo.max(0.0) * (1.0 - e.z) - e.z * e.mf.max(0.0)) / m;
         }
+        for a in &self.actuators {
+            let u = y[a.state];
+            let target = self.actuator_target(a, ev);
+            let mut d = (target - u) / a.tau;
+            if a.latch && self.latch_active {
+                d = if a.u_hi >= a.u_lo { d.max(0.0) } else { d.min(0.0) };
+            }
+            dy[a.state] = d;
+        }
         Ok(())
+    }
+
+    fn sense_value(&self, s: Sense, ev: &Eval) -> f64 {
+        match s {
+            Sense::Node(i) => ev.props[i].p,
+            Sense::Chamber(c) => ev.ch[c].pc,
+        }
+    }
+
+    fn sense_states(&self, s: Sense) -> Vec<usize> {
+        match s {
+            Sense::Node(i) => self.node_states(i),
+            Sense::Chamber(c) => vec![self.chambers[c].sp],
+        }
+    }
+
+    /// Commanded actuator position from the sensed signal.
+    pub fn actuator_target(&self, a: &Actuator, ev: &Eval) -> f64 {
+        let sig = self.sense_value(a.sense, ev)
+            - a.sense_ref.map(|r| self.sense_value(r, ev)).unwrap_or(0.0);
+        let f = ((sig - a.s_lo) / (a.s_hi - a.s_lo)).clamp(0.0, 1.0);
+        a.u_lo + (a.u_hi - a.u_lo) * f
     }
 
     /// Value of a channel from an evaluated workspace.
@@ -937,6 +1124,7 @@ impl Network {
                 StateKind::Speed => atol_scale * 0.1 + rtol * y[i].abs(),
                 StateKind::WallTemp => atol_scale * 0.01 + rtol * y[i].abs(),
                 StateKind::MixFrac => atol_scale * 1e-5 + rtol * y[i].abs(),
+                StateKind::Position => atol_scale * 1e-4 + rtol * y[i].abs(),
             };
         }
     }
@@ -950,6 +1138,7 @@ impl Network {
             StateKind::Speed => 100.0,
             StateKind::WallTemp => 100.0,
             StateKind::MixFrac => 0.1,
+            StateKind::Position => 0.1,
         }
     }
 
@@ -990,6 +1179,10 @@ impl Network {
                 r.extend(self.shafts[drive.shaft].state);
             }
             BranchKind::Turbine { drive, .. } => r.extend(self.shafts[drive.shaft].state),
+            BranchKind::Restriction {
+                ctrl: Ctrl::Actuated { act, .. },
+                ..
+            } => r.push(self.actuators[*act].state),
             _ => {}
         }
         r
@@ -1039,6 +1232,14 @@ impl Network {
             reads.extend(self.node_states(ch.port_f));
             reads.extend(self.node_states(ch.port_o));
             terms.push((reads, vec![ch.sp, ch.sp + 1]));
+        }
+        for a in &self.actuators {
+            let mut reads = vec![a.state];
+            reads.extend(self.sense_states(a.sense));
+            if let Some(r) = a.sense_ref {
+                reads.extend(self.sense_states(r));
+            }
+            terms.push((reads, vec![a.state]));
         }
         for w in &self.walls {
             let mut reads = vec![w.state];
