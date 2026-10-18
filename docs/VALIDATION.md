@@ -46,39 +46,51 @@ from the geometry and component design points in NASA TM-107318 and CR-190786.
 Eight factors are calibrated at test point 1 of CR-190786 (fuel pump head scale,
 turbine nozzle area and peak efficiency, hot-gas heat transfer factor, jacket
 throat-region loss, fuel and LOX injector discharge, nozzle thrust efficiency).
-Test points 2 to 5 are then predicted with only the bypass (TCV) and
-mixture-ratio valve openings set to the measured thrust and O/F, as done for
-ROCETS. Reproduce with `python validation/rl10/rl10.py` (8 s) and
-`python validation/rl10/start.py` (95 s); `cargo test` checks the calibration
-point and the start.
+Reproduce with `python validation/rl10/rl10.py` (2.5 min including the
+measured-speed check), `rl10.py frozen` and `rl10.py headcurve` (comparison
+cases) and `python validation/rl10/start.py`; `cargo test` checks the
+calibration point and the start.
 
-| Test points 2–5, 40 measured values | fluidnet | ROCETS (CR-190786) |
-|---|---|---|
-| Mean absolute error | 1.39 % | 1.26 % |
-| RMS error | 2.19 % | 1.55 % |
-| Largest error | 8.1 % (turbine inlet T, TP4) | 3.1 % |
-| Within 1 % / 3 % | 65 % / 83 % | 55 % / 98 % |
-| Mean error with each model's TP1 offset removed | 1.35 % | 0.38 % |
+Two checks per test point:
 
-fluidnet is calibrated at TP1 and ROCETS is not, so the plain errors favour
-fluidnet; with the TP1 offset removed (only the change between operating points
-compared), ROCETS is clearly more accurate. Near TP1 (O/F 5.42, 5.55) 17 of 20
-predictions are within 1 %. At O/F 4.99 and 4.67 the turbine inlet temperature
-is 5.5 % and 8.1 % high and the TP4 pressures 2–3.5 % low. Causes:
+- **At measured speed** (component-level): the shaft speed is prescribed at the
+  measured value and the mixture-ratio valve set to the measured O/F; the other
+  nine measured quantities, thrust and the turbopump power balance are outputs.
+  This tests the flow, heat-transfer and combustion models without the
+  turbomachinery maps.
+- **Free running**: only the bypass (TCV) and mixture-ratio valves are set, to the
+  measured thrust and O/F, as done for ROCETS; speed follows from the power
+  balance.
 
-- single-point affinity pump maps: the tested fuel pump head coefficient is
-  nearly flat over the 10 % flow-coefficient range, the generic curve loses 2.6 %;
-  the model then runs out of turbine power (TCV closed) at TP3 and TP4. Fitting
-  the head curve to the measured slope (`rl10.py headcurve`, uses TP4 data)
-  gives 1.02 % mean error, 95 % within 3 %;
-- Bartz with frozen specific heat keeps the jacket heat constant across O/F,
-  while the test data imply a 6 % drop.
+| | fluidnet 0.4 (enthalpy driving, contour) | fluidnet 0.3 (frozen c_p ΔT) | ROCETS |
+|---|---|---|---|
+| At measured speed, 45 values: mean / max error | 0.79 % / 3.6 % | 1.07 % / 7.2 % | – |
+| At measured speed: turbine inlet T error, TP3 / TP4 | +0.7 % / +0.4 % | +5.4 % / +7.2 % | – |
+| At measured speed: turbine power − pump power, TP3 / TP4 | −8.3 % / −12.8 % | −2.7 % / −4.8 % | – |
+| Free running, TP2–5, 40 values: mean / max error | 2.92 % / 9.7 % | 1.39 % / 8.1 % | 1.26 % / 3.1 % |
+| Free running, mean error with TP1 offset removed | 3.02 % | 1.35 % | 0.38 % |
+
+The enthalpy driving potential (recombination heat at the wall) reproduces the
+measured fall of turbine inlet temperature with mixture ratio; the frozen-c_p
+form kept the jacket heat constant and overpredicted it by 5–7 % at O/F 4.99
+and 4.67. That excess heat had hidden two thirds of a turbopump power
+deficit: with the correct heat, the model's turbine delivers 8–13 % less power
+than its pumps absorb at the low-O/F points, so running free it cannot reach
+the test thrust there (TCV closed) and the TP3/TP4 pressures fall 4–10 % low.
+The deficit lies in the generic single-design-point pump and turbine maps
+(TM-107318's own design point shows a 12 % gap between its turbine and pump
+data). Flattening the fuel pump head curve to the measured head coefficient
+(`rl10.py headcurve`, uses TP4 data) moves the free-running mean error to
+2.6 %; the measured maps (TM-107318 figures 4.1.1–4.1.17) are the next step.
+fluidnet 0.4 keeps the enthalpy potential as the default because it is right
+for the right reason.
 
 Start transient (`examples/rl10a33a_start.yaml`, pressure-actuated OCV, FCV1 and
-TCV): time from start signal to 200 psia is 1.84 s against 1.43–2.56 s measured
-on nine starts (mean 1.93 s, CR-195478 Table 2); the start ends within 0.2 % of
-the TP1 steady state. The unpublished start-valve settings move the result from
-1.26 s to no start, so this is a plausibility check, not a validated prediction.
+TCV): time from start signal to 200 psia is 1.51 s (fluidnet 0.3: 1.84 s)
+against 1.43–2.56 s measured on nine starts (mean 1.93 s, CR-195478 Table 2);
+the start ends within 0.3 % of the TP1 steady state. The unpublished
+start-valve settings move the result between 1.20 and 2.34 s, so this is a
+plausibility check, not a validated prediction.
 
 Published data that had to be resolved: the 2.47 in and 5.13 in chamber
 dimensions are radii (the 19.19 in² throat area gives 4.94 in diameter); the

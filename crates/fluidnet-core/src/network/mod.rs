@@ -24,7 +24,7 @@ mod compile;
 
 use std::sync::Arc;
 
-use crate::combustion::{bartz_htc, thrust_coefficient, vdk, CombTable, G0, RU};
+use crate::combustion::{bartz_htc, thrust_coefficient, vdk, CombTable, G0, RU, T_WALL_REF};
 use crate::error::{Error, Result};
 use crate::flow::{gas_flux, nusselt, pipe_dp, restriction_flux, RestrictionModel};
 use crate::machines::{Material, PumpMap, TurbineMap};
@@ -232,8 +232,12 @@ pub enum HotSide {
     },
     Chamber {
         ch: usize,
+        /// local flow area over throat area at this wall element (Bartz)
         contraction: f64,
         factor: f64,
+        /// drive with the equilibrium enthalpy difference (recombination at the
+        /// wall) instead of cp (Tc - Tw)
+        enthalpy: bool,
     },
 }
 
@@ -399,6 +403,11 @@ pub struct ChEval {
     pub mo: f64,
     pub thrust: f64,
     pub ign: f64,
+    /// hot-gas driving potential to a wall at T_WALL_REF (burning gas), J/kg
+    pub dh_wall: f64,
+    pub cp_wall: f64,
+    /// temperature of the unburnt propellant gas (before ignition)
+    pub tc_cold: f64,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -765,9 +774,19 @@ impl Network {
                     ch,
                     contraction,
                     factor,
+                    enthalpy,
                 } => {
                     let ce = &ev.ch[*ch];
                     let chm = &self.chambers[*ch];
+                    // driving temperature: Tc, or (enthalpy mode) the wall temperature plus
+                    // the equilibrium enthalpy difference over the frozen cp used by Bartz
+                    let t_drive = if *enthalpy && chm.table.has_wall && ce.ign > 0.0 {
+                        let cp_g = ce.gamma_f * RU / (ce.molar_mass * 1e-3) / (ce.gamma_f - 1.0);
+                        let dh = (ce.dh_wall - ce.cp_wall * (tw - T_WALL_REF)).max(0.0);
+                        (1.0 - ce.ign) * ce.tc_cold + ce.ign * (tw + dh / cp_g)
+                    } else {
+                        ce.tc
+                    };
                     // hot-gas-side surface temperature estimate for the Bartz sigma factor
                     let hg = factor
                         * bartz_htc(
@@ -781,7 +800,7 @@ impl Network {
                             *contraction,
                         );
                     let q = if hg > 0.0 {
-                        (ce.tc - tw) / (1.0 / (hg * w.area_hot) + half / w.area_hot)
+                        (t_drive - tw) / (1.0 / (hg * w.area_hot) + half / w.area_hot)
                     } else {
                         0.0
                     };
@@ -872,6 +891,9 @@ impl Network {
             mo,
             thrust,
             ign,
+            dh_wall: ch.eta_c * ch.eta_c * (cs.dh_wall + dh).max(0.0),
+            cp_wall: cs.cp_wall,
+            tc_cold: t_cold,
         }
     }
 

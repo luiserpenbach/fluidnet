@@ -80,6 +80,8 @@ _REF = None
 # sensitivity option: fuel pump head-curve shape (shutoff head / design head);
 # None keeps the model default (1.15, generic)
 SHUTOFF_HEAD = None
+# comparison option: hot-gas driving potential ('enthalpy' default, 'temperature' = frozen cp (Tc - Tw))
+HOT_DRIVING = None
 
 
 class Engine:
@@ -102,6 +104,8 @@ class Engine:
         fn.set_param(m, "lox_tank", "T", tp["lox_tank_T"] * RANK)
         for j in JACKET:
             fn.set_param(m, j, "hot_htc_factor", c["htc_factor"])
+            if HOT_DRIVING is not None:
+                fn.set_param(m, j, "hot_driving", HOT_DRIVING)
         fn.set_param(m, "jacket_up_chamber", "K", c["jacket_K"])
         fn.set_param(m, "turbine", "area", c["turbine_area"])
         fn.set_param(m, "turbine", "design_eff", c["turbine_eff"])
@@ -273,6 +277,42 @@ def predict(calres: dict, verbose=True) -> list:
     return out
 
 
+def at_speed(calres: dict, verbose=True) -> dict:
+    """Component-level check: shaft speed prescribed at the measured value,
+    mixture-ratio valve set to the measured O/F, bypass valve as at TP1. Every
+    other measured quantity, the thrust, and the turbopump power balance are
+    outputs. Separates the flow, heat-transfer and combustion models from the
+    turbomachinery power balance."""
+    from scipy.optimize import brentq
+
+    rows = []
+    for tp in DATA["points"]:
+        eng = Engine(calres["cal"], calres["cf_eff"])
+        eng.base = fn.load(MODEL)
+        fn.set_param(eng.base, "turbopump", "speed", tp["test"]["lox_pump_speed"] * 2.5 * RPM)
+        tcv = calres["ctrl_tp1"]["tcv"]
+        x = brentq(lambda v: eng.solve(tp, {"ocv": v, "tcv": tcv})["of"] - tp["of"], 0.08, 1.0, xtol=1e-6)
+        o = eng.solve(tp, {"ocv": x, "tcv": tcv})
+        g = eng.last.last
+        pumps = g("fuel_pump_1.power") + g("fuel_pump_2.power") + g("lox_pump.power")
+        keys = [k for k in PARAMS if k != "lox_pump_speed"]
+        row = {"id": tp["id"], "model": o, "test": tp["test"],
+               "err_pct": {k: (o[k] - tp["test"][k]) / tp["test"][k] * 100 for k in keys},
+               "thrust_err_pct": (o["thrust"] - tp["thrust"]) / tp["thrust"] * 100,
+               "turbine_kW": g("turbine.power") / 1e3, "pumps_kW": pumps / 1e3,
+               "power_gap_pct": (g("turbine.power") - pumps - 2.26 * g("turbopump.speed")) / pumps * 100}
+        rows.append(row)
+        if verbose:
+            print(f"{tp['id']} at measured speed: thrust {row['thrust_err_pct']:+.2f} %, turbine - pumps - drag {row['power_gap_pct']:+.1f} % | "
+                  + " ".join(f"{k.split('_')[0][:4]}{v:+.2f}" for k, v in row["err_pct"].items()))
+    allv = [abs(v) for r in rows for v in r["err_pct"].values()]
+    out = {"points": rows, "mean_abs": float(np.mean(allv)), "max_abs": float(np.max(allv)),
+           "within_1": float(np.mean(np.array(allv) <= 1.0)), "within_2": float(np.mean(np.array(allv) <= 2.0)), "n": len(allv)}
+    if verbose:
+        print(f"at measured speed, {out['n']} values: mean |e| {out['mean_abs']:.2f} %, max {out['max_abs']:.2f} %, within 1 % {out['within_1']*100:.0f} %, within 2 % {out['within_2']*100:.0f} %")
+    return out
+
+
 def write_model(calres: dict):
     """Store the calibrated factors and the TP1 valve settings in the example model."""
     s = MODEL.read_text()
@@ -337,11 +377,16 @@ def summary(rows: list) -> dict:
 
 
 def main():
-    global SHUTOFF_HEAD
+    global SHUTOFF_HEAD, HOT_DRIVING
     what = sys.argv[1] if len(sys.argv) > 1 else "all"
     t0 = time.time()
     res_file = HERE / "results.json"
-    if what == "headcurve":
+    if what == "frozen":
+        # comparison: frozen-cp temperature driving potential (fluidnet 0.3)
+        HOT_DRIVING = "temperature"
+        res_file = HERE / "results_frozen.json"
+        calres = calibrate()
+    elif what == "headcurve":
         # sensitivity: fuel pump head curve as flat as the measured TP1-TP4 head coefficients
         SHUTOFF_HEAD = 1.03
         res_file = HERE / "results_headcurve.json"
@@ -353,7 +398,9 @@ def main():
         calres = json.loads(res_file.read_text())["calibration"]
     rows = predict(calres)
     stats = summary(rows)
-    res_file.write_text(json.dumps({"calibration": calres, "points": rows, "stats": stats, "shutoff_head": SHUTOFF_HEAD}, indent=1))
+    speed = at_speed(calres)
+    res_file.write_text(json.dumps({"calibration": calres, "points": rows, "stats": stats, "at_speed": speed,
+                                    "shutoff_head": SHUTOFF_HEAD, "hot_driving": HOT_DRIVING or "enthalpy"}, indent=1))
     s = stats
     print(f"\nTP2-TP5 predictions, {s['fluidnet_tp2_5']['n']} values:")
     for key, lab in (("fluidnet_tp2_5", "fluidnet"), ("rocets_tp2_5", "ROCETS  "), ("fluidnet_anchored", "fluidnet, TP1 offset removed"), ("rocets_anchored", "ROCETS,   TP1 offset removed")):

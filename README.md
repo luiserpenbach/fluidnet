@@ -138,11 +138,18 @@ evaluated for a steady-state solve, e.g. the end of a start sequence).
 | `combustion_chamber` | fuel, ox | Equilibrium tables (H2, CH4, ethanol with O2) corrected for injection enthalpy, chamber filling and mixing dynamics, ignition, nozzle thrust and Isp |
 
 Pumps and turbines name a `shaft` (with a gear `ratio`) or take a fixed `speed`.
+Without map data they scale from one design point (affinity laws, impulse
+turbine); measured maps replace the generic curves: pump `head_curve` and
+`eff_curve` as [[φ, ψ]] and [[φ, η/η_d]] in coefficients relative to the
+design point, turbine `eff_curve` as [[u/c0, η/η_d]].
 Pipes take `parallel` channels and an optional wall with heat capacity
 (`wall_thickness`, `wall_material`: CuCrZr, copper, GRCop-42, nickel, stainless,
 Inconel 718, aluminium, Debye heat capacity) heated by a chamber
-(`hot_chamber`, Bartz correlation with the local area ratio and wall-temperature
-correction), by a prescribed gas (`hot_T`, `hot_htc`) or flux (`q_wall`).
+(`hot_chamber`, Bartz correlation with the wall-temperature correction, the
+local area ratio of each wall element from `hot_contour` [[x/L, A/At]], and by
+default the equilibrium enthalpy difference between the chamber gas and the gas
+recombined at the wall as driving potential, `hot_driving: enthalpy`), by a
+prescribed gas (`hot_T`, `hot_htc`) or flux (`q_wall`).
 
 Every node exposes `P`, `T`, `rho`, `h`, `x`; every flow element `mdot`, `dp` and,
 where relevant, `choked`, `opening`, `Q`, `u_in`. Pumps: `head`, `eff`, `npsh`,
@@ -168,7 +175,7 @@ injectors and turbine nozzle for the design point:
 | Shaft speed | 49,960 rpm (LOX pump geared 0.3) |
 | Fuel pump | +107 bar, 163 kW, η 0.61 |
 | Turbine | inlet 104 bar / 223 K, PR 1.72, η 0.62, 194 kW |
-| Jacket | 2.0 MW heat pickup, hot wall 595 K |
+| Jacket | 2.0 MW heat pickup, hot wall 611 K |
 
 The start example runs a tank-head start: boil-off from the warm jacket spins the
 turbopump, ignition at 0.5 s, fuel-rich LOX idle, then the climb to mainstage by
@@ -178,12 +185,15 @@ example opens the turbine bypass from the design point (66 % thrust and back).
 ## Validation against the RL10A-3-3A
 
 `examples/rl10a33a.yaml` is the Pratt & Whitney RL10A-3-3A built from NASA's
-published component data and calibrated at one ground-test point. It predicts
-four further test points with 1.39 % mean error (ROCETS, NASA's model with the
-manufacturer's maps: 1.26 %), within 1 % near the calibration point and up to
-8 % at the lowest mixture ratio. `examples/rl10a33a_start.yaml` reaches 200 psia
-1.84 s after the start signal (measured 1.43–2.56 s). Details, error sources
-and the scripts in docs/VALIDATION.md and `validation/rl10/`.
+published component data and calibrated at one ground-test point. With the
+measured shaft speed imposed, it predicts the other measured pressures, flows
+and the turbine inlet temperature at all five test points with 0.79 % mean
+error (largest 3.6 %). Running free, it predicts the four other points with
+2.9 % mean error (NASA's ROCETS with the manufacturer's maps: 1.3 %): the
+generic single-design-point pump and turbine maps leave the turbopump 8–13 %
+short of power at the lowest mixture ratios. `examples/rl10a33a_start.yaml`
+reaches 200 psia 1.51 s after the start signal (measured 1.43–2.56 s). Details,
+error sources and the scripts in docs/VALIDATION.md and `validation/rl10/`.
 
 ## Performance
 
@@ -202,9 +212,9 @@ thrust coefficient, shaft torque and jacket energy balances of the expander.
 
 Next:
 
-1. Multi-point pump and turbine maps (head, efficiency, flow from test data) and
-   an enthalpy-based local Bartz along the contour: the two error sources of the
-   RL10 validation.
+1. RL10 turbopump maps digitized from NASA TM-107318 (figures 4.1.1–4.1.17)
+   into the tabulated map inputs, to close the power-balance gap of the RL10
+   validation.
 2. Design-mode steady state: solve for chosen parameters (orifice areas, valve
    positions, pump speed) to meet targets (Pc, O/F, power balance) inside the
    solver, replacing the external sizing loop.

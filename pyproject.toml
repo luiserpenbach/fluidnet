@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "fluidnet"
-version = "0.3.0"
+version = "0.4.0"
 description = "Fluid network and engine-cycle simulation: transient and steady state, real-fluid properties, Rust core"
 requires-python = ">=3.8"
 dependencies = ["numpy"]

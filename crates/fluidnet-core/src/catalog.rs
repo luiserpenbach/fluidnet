@@ -449,8 +449,10 @@ pub fn specs() -> Vec<CompSpec> {
         q("wall_T0", "Initial wall temperature", Dim::Temperature, "K", None, "Initial wall temperature (default: initial fluid temperature).").opt(),
         r("hot_chamber", "Hot gas: chamber", "combustion_chamber", "Combustion chamber that heats this wall (Bartz correlation on chamber gas properties)."),
         q("hot_area", "Hot-gas area", Dim::Area, "cm2", None, "Hot-gas-side area of the whole line (chamber and nozzle wall it cools).").opt(),
-        q("hot_contraction", "Local area ratio A/At", Dim::None, "-", Some("3"), "Mean local flow area over throat area along the cooled length (Bartz)."),
+        q("hot_contraction", "Local area ratio A/At", Dim::None, "-", Some("3"), "Mean local flow area over throat area along the cooled length (Bartz), when no hot_contour is given."),
         q("hot_htc_factor", "Hot-side HTC factor", Dim::None, "-", Some("1"), "Multiplier on the Bartz coefficient."),
+        q("hot_contour", "Area ratio along the line", Dim::None, "-", None, "Local A/At vs position along the line, [[x/L, A/At], ...] from inlet (0) to outlet (1); per wall element Bartz and hot area in proportion to the local radius. Overrides hot_contraction.").sched().opt(),
+        choice("hot_driving", "Hot-gas driving potential", &["enthalpy", "temperature"], "enthalpy", "enthalpy: equilibrium enthalpy of the chamber gas minus that of the gas recombined at the wall (captures recombination heat); temperature: frozen cp (Tc - Tw)."),
         q("hot_T", "Hot gas temperature", Dim::Temperature, "K", None, "Prescribed hot-gas temperature instead of a chamber.").sched().opt(),
         q("hot_htc", "Hot gas HTC", Dim::Htc, "kW/m2/K", None, "Prescribed hot-side heat transfer coefficient (with hot_T).").sched().opt(),
         q("cool_correction", "Coolant property exponent", Dim::None, "-", Some("0"), "Applies (T_bulk/T_wall)^n to the coolant Nusselt number; 0.55 is common for supercritical hydrogen."),
@@ -812,6 +814,8 @@ pub fn specs() -> Vec<CompSpec> {
             Some("0.45"),
             "Shaft power at zero flow over design power, same speed.",
         ),
+        q("head_curve", "Head map", Dim::None, "-", None, "Measured head map [[phi, psi], ...]: psi = (H/H_d)/(N/N_d)^2 vs phi = (Q/Q_d)/(N/N_d); replaces the generic curve above 20 % speed.").sched().opt(),
+        q("eff_curve", "Efficiency map", Dim::None, "-", None, "Measured efficiency map [[phi, eta/eta_d], ...] vs the same phi; sets the shaft power map (anchored at shutoff_power at zero flow).").sched().opt(),
         q(
             "inertance",
             "Fluid inertance L/A",
@@ -858,6 +862,7 @@ pub fn specs() -> Vec<CompSpec> {
             Some("0.35"),
             "Blade speed over spouting velocity at peak efficiency.",
         ),
+        q("eff_curve", "Efficiency map", Dim::None, "-", None, "Measured efficiency map [[u/c0, eta/eta_d], ...] (eta = 0 at u = 0 is added); replaces the parabolic curve.").sched().opt(),
     ]);
     if let Some(p) = turb.iter_mut().find(|p| p.key == "diameter") {
         p.label = "Nozzle throat diameter";

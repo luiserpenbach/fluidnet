@@ -5,7 +5,7 @@ components:
   - {id: fuel_pump, type: pump, shaft: turbopump, design_speed: 50000 rpm, design_mdot: 0.7 kg/s, design_dp: 105 bar, design_eff: 0.62, ui: {x: 150, y: 70}}
   - {id: fuel_line, type: pipe, length: 0.8 m, diameter: 16 mm, segments: 1, ui: {x: 290, y: 78}}
   - {id: jacket_inlet, type: junction, volume: 0.3 L, ui: {x: 430, y: 85}}
-  - {id: jacket, type: pipe, length: 0.6 m, diameter: 2.6 mm, parallel: 60, segments: 8, roughness: 2 um, wall_thickness: 1.2 mm, wall_material: cucrzr, wall_mass_factor: 2.0, wall_T0: 280 K, hot_chamber: tca, hot_area: 1900 cm2, hot_contraction: 3, hot_htc_factor: 0.6, cool_correction: 0.55, P0: 3 bar, T0: 280 K, ui: {x: 500, y: 78}}
+  - {id: jacket, type: pipe, length: 0.6 m, diameter: 2.6 mm, parallel: 60, segments: 8, roughness: 2 um, wall_thickness: 1.2 mm, wall_material: cucrzr, wall_mass_factor: 2.0, wall_T0: 280 K, hot_chamber: tca, hot_area: 1900 cm2, hot_contraction: 3, hot_htc_factor: 0.577, cool_correction: 0.55, P0: 3 bar, T0: 280 K, ui: {x: 500, y: 78}}
   - {id: turbine_inlet, type: junction, volume: 0.3 L, ui: {x: 660, y: 85}}
   - {id: turbine, type: turbine, shaft: turbopump, diameter: 10.8769 mm, cd: 0.95, mean_diameter: 140 mm, design_eff: 0.62, design_velocity_ratio: 0.35, ui: {x: 760, y: 0}}
   - {id: tbv, type: valve, diameter: 8 mm, cd: 0.8, opening: [[0, 0], [5.5, 0], [6, 0.0586]], ui: {x: 760, y: 165}}

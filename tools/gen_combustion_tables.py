@@ -8,7 +8,12 @@ For each propellant pair and grid point (O/F, Pc):
     isentropic exponent at the throat gamma_s = rho a^2 / P;
   * sensitivities to the reactant mixture enthalpy, dc*/dh and dTc/dh, so the
     solver can correct for injection temperatures that differ from the
-    reference (e.g. hydrogen leaving a cooling jacket warmer than assumed).
+    reference (e.g. hydrogen leaving a cooling jacket warmer than assumed);
+  * the hot-gas heat transfer driving potential: chamber enthalpy minus the
+    enthalpy of the same gas in equilibrium at a wall temperature of T_WALL
+    (dh_wall, includes the recombination of dissociated species at the wall),
+    and the equilibrium specific heat near the wall (cp_wall) to shift it to
+    other wall temperatures.
 
 Reactant enthalpies: NASA ideal-gas formation enthalpy at 298.15 K plus the
 real-fluid enthalpy change from 298.15 K / 1 bar to the reference state from
@@ -16,6 +21,7 @@ CoolProp. The CoolProp-convention reference enthalpies are stored so the solver
 can compute the deviation of the actual injected enthalpy in its own units.
 
 Usage: python gen_combustion_tables.py OUT.json
+       python gen_combustion_tables.py --augment TABLES.json   (add dh_wall/cp_wall only)
 """
 import json
 import sys
@@ -43,6 +49,7 @@ PAIRS = [
     ('C2H5OH', 'O2', np.r_[np.linspace(0.4, 1.0, 4), np.linspace(1.1, 2.8, 27), 3.0, 3.5]),
 ]
 PC = np.array([1, 2, 5, 10, 20, 35, 50, 75, 100, 150, 200]) * 1e5
+T_WALL = 600.0
 
 
 def gas():
@@ -102,6 +109,47 @@ def point(fuel, ox, of, pc, hmix):
     return dict(Tc=Tc, M=Mc, gamma_f=gam_f, gamma_s=gam_s, cstar=cstar, pt_pc=pt / pc)
 
 
+def wall_potential(fuel, ox, of, pc, hmix):
+    """(h_chamber - h_eq(T_WALL), equilibrium cp at T_WALL) for the chamber gas."""
+    yf, yo = 1.0 / (1.0 + of), of / (1.0 + of)
+    G.TPY = 2500.0, pc, {PROPELLANTS[fuel][0]: yf, PROPELLANTS[ox][0]: yo}
+    G.equilibrate('TP')
+    G.HP = hmix, pc
+    G.equilibrate('HP')
+    h0 = G.enthalpy_mass
+    G.TP = T_WALL, pc
+    G.equilibrate('TP')
+    h1 = G.enthalpy_mass
+    G.TP = T_WALL + 100.0, pc
+    G.equilibrate('TP')
+    h2 = G.enthalpy_mass
+    return h0 - h1, (h2 - h1) / 100.0
+
+
+def augment(path):
+    with open(path) as f:
+        data = json.load(f)
+    for t in data['tables']:
+        fuel, ox = t['fuel'], t['oxidizer']
+        hf, _ = reactant_h(fuel)
+        ho, _ = reactant_h(ox)
+        dhw, cpw = [], []
+        for pc in t['pc']:
+            r1, r2 = [], []
+            for of in t['of']:
+                yf, yo = 1 / (1 + of), of / (1 + of)
+                a, b = wall_potential(fuel, ox, of, pc, yf * hf + yo * ho)
+                r1.append(float(a))
+                r2.append(float(b))
+            dhw.append(r1)
+            cpw.append(r2)
+        t['dh_wall'], t['cp_wall'] = dhw, cpw
+        print(f'{fuel}/{ox}: wall potential added')
+    data['meta']['t_wall'] = T_WALL
+    with open(path, 'w') as f:
+        json.dump(data, f, separators=(',', ':'))
+
+
 def main(out):
     tables = []
     for fuel, ox, ofs in PAIRS:
@@ -109,7 +157,7 @@ def main(out):
         hf, hf_cp = reactant_h(fuel)
         ho, ho_cp = reactant_h(ox)
         nO, nP = len(ofs), len(PC)
-        fields = {k: np.zeros((nP, nO)) for k in ['cstar', 'Tc', 'M', 'gamma_s', 'gamma_f', 'dcstar_dh', 'dTc_dh']}
+        fields = {k: np.zeros((nP, nO)) for k in ['cstar', 'Tc', 'M', 'gamma_s', 'gamma_f', 'dcstar_dh', 'dTc_dh', 'dh_wall', 'cp_wall']}
         for i, pc in enumerate(PC):
             for j, of in enumerate(ofs):
                 yf, yo = 1 / (1 + of), of / (1 + of)
@@ -121,6 +169,7 @@ def main(out):
                     fields[k][i, j] = r[k]
                 fields['dcstar_dh'][i, j] = (r2['cstar'] - r['cstar']) / dh
                 fields['dTc_dh'][i, j] = (r2['Tc'] - r['Tc']) / dh
+                fields['dh_wall'][i, j], fields['cp_wall'][i, j] = wall_potential(fuel, ox, of, pc, hmix)
         best = int(np.argmax(fields['cstar'][PC.searchsorted(50e5)]))
         print(f'{fuel}/{ox}: {nP}x{nO} points in {time.time() - t0:.0f} s; at 50 bar max c* = '
               f'{fields["cstar"][PC.searchsorted(50e5), best]:.0f} m/s at O/F {ofs[best]:.2f}', flush=True)
@@ -131,11 +180,14 @@ def main(out):
             of=[float(x) for x in ofs], pc=[float(x) for x in PC],
             **{k: [[float(x) for x in row] for row in v] for k, v in fields.items()},
         ))
-    meta = dict(generator='tools/gen_combustion_tables.py', cantera=ct.__version__, coolprop=CP.get_global_param_string('version'),
+    meta = dict(generator='tools/gen_combustion_tables.py', cantera=ct.__version__, coolprop=CP.get_global_param_string('version'), t_wall=T_WALL,
                 note='shifting-equilibrium throat; reactant enthalpy references in CoolProp convention')
     with open(out, 'w') as f:
         json.dump(dict(meta=meta, tables=tables), f, separators=(',', ':'))
 
 
 if __name__ == '__main__':
-    main(sys.argv[1])
+    if sys.argv[1] == '--augment':
+        augment(sys.argv[2])
+    else:
+        main(sys.argv[1])

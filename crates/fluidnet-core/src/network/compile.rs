@@ -6,7 +6,7 @@ use std::sync::Arc;
 use super::*;
 use crate::catalog::Params;
 use crate::combustion;
-use crate::machines::material;
+use crate::machines::{material, Curve};
 use crate::model::Model;
 use crate::props::FluidLibrary;
 
@@ -596,10 +596,20 @@ impl Network {
                         let hot_ch = lookup_ref(p, "hot_chamber", "combustion_chamber")?;
                         let hot_area_total = p.q_opt("hot_area")?;
                         let hot = if let Some(cci) = hot_ch {
+                            let enthalpy = match p.str_opt("hot_driving").as_deref() {
+                                None | Some("enthalpy") => true,
+                                Some("temperature") => false,
+                                Some(o) => {
+                                    return Err(Error::Model(format!(
+                                        "{id}: hot_driving must be enthalpy or temperature, got '{o}'"
+                                    )))
+                                }
+                            };
                             HotSide::Chamber {
                                 ch: chamber_of_comp[&cci],
                                 contraction: p.q("hot_contraction")?,
                                 factor: p.q("hot_htc_factor")?,
+                                enthalpy,
                             }
                         } else if p.has("hot_T") {
                             let t = p.sched("hot_T")?;
@@ -629,8 +639,34 @@ impl Network {
                         let cool_factor = p.q("cool_area_factor")?;
                         let corr = p.q("cool_correction")?;
                         let t0 = p.q_opt("wall_T0")?;
+                        // local area ratio along the line (Bartz) and hot-side area
+                        // per element in proportion to the local perimeter
+                        let contour = p.sched_opt("hot_contour")?;
+                        let npos = chain.len();
+                        let eps_at = |pos: usize| -> f64 {
+                            let x = if npos > 1 { pos as f64 / (npos - 1) as f64 } else { 0.5 };
+                            match (&contour, &hot) {
+                                (Some(c), _) => c.at(x).max(1.0),
+                                (None, HotSide::Chamber { contraction, .. }) => *contraction,
+                                _ => 1.0,
+                            }
+                        };
+                        let weight = |pos: usize| -> f64 {
+                            share(pos).0 * if contour.is_some() { eps_at(pos).sqrt() } else { 1.0 }
+                        };
+                        let wsum: f64 = (0..npos).map(weight).sum();
                         for (pos, &nd) in chain.iter().enumerate() {
                             let (f, brs) = share(pos);
+                            let hot_share = weight(pos) / wsum.max(1e-300);
+                            let hot_local = match &hot {
+                                HotSide::Chamber { ch, factor, enthalpy, .. } => HotSide::Chamber {
+                                    ch: *ch,
+                                    contraction: eps_at(pos),
+                                    factor: *factor,
+                                    enthalpy: *enthalpy,
+                                },
+                                other => other.clone(),
+                            };
                             wall_inits.push(WallInit {
                                 wall: walls.len(),
                                 t0,
@@ -643,12 +679,12 @@ impl Network {
                                 mat,
                                 mass: mass_total * f,
                                 area_cool: wet_total * f * cool_factor,
-                                area_hot: (hot_total * f).max(1e-12),
+                                area_hot: (hot_total * hot_share).max(1e-12),
                                 thick,
                                 d,
                                 flow_area: area,
                                 branches: brs,
-                                hot: hot.clone(),
+                                hot: hot_local,
                                 corr,
                                 t0: 0.0,
                             });
@@ -842,13 +878,43 @@ impl Network {
                         dp_d,
                         rho_d: p.q_opt("design_density")?,
                     });
+                    let a = p.q("shutoff_head")?;
+                    let p0 = p.q("shutoff_power")?;
+                    let head = curve_param(p, "head_curve")?;
+                    let eff = curve_param(p, "eff_curve")?;
+                    // efficiency map -> power coefficient pi = phi psi / e, anchored at
+                    // the shutoff power so the map stays defined at zero flow
+                    let power = match &eff {
+                        None => None,
+                        Some(e) => {
+                            let psi = |phi: f64| match &head {
+                                Some(h) => h.at(phi),
+                                None => a + (1.0 - a) * phi * phi.abs(),
+                            };
+                            let mut pts: Vec<(f64, f64)> = e
+                                .x
+                                .iter()
+                                .zip(&e.y)
+                                .filter(|(phi, eta)| **phi > 0.0 && **eta > 0.05)
+                                .map(|(phi, eta)| (*phi, phi * psi(*phi) / eta))
+                                .collect();
+                            if pts.iter().all(|pt| pt.0 > 1e-9) {
+                                pts.push((0.0, p0));
+                            }
+                            Some(Curve::new(pts).ok_or_else(|| {
+                                Error::Model(format!("{id}: eff_curve needs at least one point with phi > 0 and efficiency > 0.05"))
+                            })?)
+                        }
+                    };
                     let map = PumpMap {
                         w_d,
                         q_d: 0.0,
                         h_d: 0.0,
                         eta_d,
-                        a: p.q("shutoff_head")?,
-                        p0: p.q("shutoff_power")?,
+                        a,
+                        p0,
+                        head,
+                        power,
                     };
                     comps[ci].branches.push(branches.len());
                     branches.push(Branch {
@@ -886,6 +952,19 @@ impl Network {
                                 r_m: 0.5 * dm,
                                 eta_d,
                                 x_d,
+                                eff: {
+                                    match curve_param(p, "eff_curve")? {
+                                        None => None,
+                                        Some(c) => {
+                                            let mut pts: Vec<(f64, f64)> =
+                                                c.x.iter().copied().zip(c.y.iter().copied()).collect();
+                                            if pts.iter().all(|pt| pt.0.abs() > 1e-9) {
+                                                pts.push((0.0, 0.0));
+                                            }
+                                            Curve::new(pts)
+                                        }
+                                    }
+                                },
                             },
                         },
                     });
@@ -1542,4 +1621,18 @@ struct PendingAct {
     tau: f64,
     latch: bool,
     u0: f64,
+}
+
+/// A [[x, y], ...] table parameter as a curve (None when absent).
+fn curve_param(p: &Params, key: &str) -> Result<Option<Curve>> {
+    match p.sched_opt(key)? {
+        None => Ok(None),
+        Some(Schedule::Const(_)) => Err(Error::Model(format!(
+            "{}.{key}: give a table [[x, y], ...] with at least two points",
+            p.id
+        ))),
+        Some(Schedule::Table { t, v, .. }) => Curve::new(t.into_iter().zip(v).collect())
+            .map(Some)
+            .ok_or_else(|| Error::Model(format!("{}.{key}: needs two or more distinct points", p.id))),
+    }
 }

@@ -100,9 +100,22 @@ c drops by about 4 between 300 K and 50 K, which governs chill-down). Conduction
 through half the wall thickness is in series with each side. Coolant side:
 Gnielinski with an optional (T_b/T_w)^n property correction (0.55 for
 supercritical hydrogen) and a fin/area factor. Hot side: Bartz with the chamber's
-current Pc, c*, frozen γ, molar mass and temperature, the local area ratio, and
-the wall-temperature correction σ; or a prescribed gas temperature and HTC; or a
-heat flux.
+current Pc, c*, frozen γ, molar mass and temperature, the local area ratio of the
+element (from `hot_contour`, hot area per element in proportion to the local
+radius) and the wall-temperature correction σ; or a prescribed gas temperature
+and HTC; or a heat flux. The default driving potential is enthalpy based:
+q = h_g/c_p,frozen · (h_c − h_eq(T_w)), where h_c − h_eq(T_wall,ref) and the
+near-wall equilibrium c_p are tabulated with the combustion tables. It includes
+the heat released when dissociated species recombine at the cold wall, which
+makes the heat flux fall with mixture ratio on the fuel-rich side (−4 % from O/F
+5.63 to 4.67 for LOX/LH2), where c_p,frozen (T_c − T_w) rises. On the RL10 this
+brings the turbine inlet temperature from 5–7 % to within 0.7 % of the test data.
+
+Pump and turbine maps: generic (affinity laws from one design point, impulse
+turbine parabola) or tabulated: ψ(φ) and η/η_d(φ) for pumps, converted to a
+power coefficient anchored at the shutoff power so the map holds at zero flow,
+and blended into the generic zero-speed behaviour below 20 % speed; η/η_d(u/c0)
+for turbines, with torque ṁ r c0 η / (2 u/c0), finite at stall.
 
 ### Combustion chamber (`combustion.rs`)
 

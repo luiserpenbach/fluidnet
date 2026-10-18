@@ -31,6 +31,10 @@ struct RawTable {
     dcstar_dh: Vec<Vec<f64>>,
     #[serde(rename = "dTc_dh")]
     dtc_dh: Vec<Vec<f64>>,
+    #[serde(default)]
+    dh_wall: Vec<Vec<f64>>,
+    #[serde(default)]
+    cp_wall: Vec<Vec<f64>>,
 }
 
 #[derive(Deserialize)]
@@ -51,8 +55,13 @@ pub struct CombTable {
     of: Vec<f64>,
     lpc: Vec<f64>,
     // row-major [pc][of]
-    f: [Vec<f64>; 7],
+    f: [Vec<f64>; 9],
+    /// Table carries the equilibrium wall enthalpy potential.
+    pub has_wall: bool,
 }
+
+/// Wall temperature at which `dh_wall` is tabulated, K.
+pub const T_WALL_REF: f64 = 600.0;
 
 /// Interpolated combustion state.
 #[derive(Debug, Clone, Copy, Default)]
@@ -64,6 +73,11 @@ pub struct CombState {
     pub gamma_f: f64,
     pub dcstar_dh: f64,
     pub dtc_dh: f64,
+    /// Chamber enthalpy minus the enthalpy of the same gas in equilibrium at
+    /// T_WALL_REF (hot-gas heat transfer driving potential), J/kg.
+    pub dh_wall: f64,
+    /// Equilibrium specific heat of the gas near the wall, J/kg/K.
+    pub cp_wall: f64,
 }
 
 fn bracket(g: &[f64], x: f64) -> (usize, f64) {
@@ -99,6 +113,8 @@ impl CombTable {
             gamma_f: at(4),
             dcstar_dh: at(5),
             dtc_dh: at(6),
+            dh_wall: if self.has_wall { at(7) } else { 0.0 },
+            cp_wall: if self.has_wall { at(8) } else { 0.0 },
         }
     }
 }
@@ -113,7 +129,9 @@ pub fn tables() -> &'static [Arc<CombTable>] {
             .into_iter()
             .map(|t| {
                 let flat = |v: Vec<Vec<f64>>| -> Vec<f64> { v.into_iter().flatten().collect() };
+                let has_wall = !t.dh_wall.is_empty() && !t.cp_wall.is_empty();
                 Arc::new(CombTable {
+                    has_wall,
                     lpc: t.pc.iter().map(|p| p.log10()).collect(),
                     of: t.of,
                     f: [
@@ -124,6 +142,8 @@ pub fn tables() -> &'static [Arc<CombTable>] {
                         flat(t.gamma_f),
                         flat(t.dcstar_dh),
                         flat(t.dtc_dh),
+                        flat(t.dh_wall),
+                        flat(t.cp_wall),
                     ],
                     fuel: t.fuel,
                     oxidizer: t.oxidizer,
@@ -241,5 +261,20 @@ mod tests {
         assert!((me - 3.27834).abs() < 1e-4, "{me}");
         let cf = thrust_coefficient(1.2, 10.0, 0.0);
         assert!((cf - 1.74231).abs() < 1e-4, "{cf}");
+    }
+
+    #[test]
+    fn wall_enthalpy_potential_follows_mixture_ratio() {
+        // LOX/LH2 near the RL10 point: the equilibrium potential (recombination at
+        // the wall) falls 4 % from O/F 5.63 to 4.67 while frozen cp (Tc - Tw) rises
+        let t = find("H2", "O2").unwrap();
+        assert!(t.has_wall);
+        let (a, b) = (t.eval(5.63, 32.6e5), t.eval(4.67, 32.6e5));
+        let r = b.dh_wall / a.dh_wall;
+        assert!((r - 0.959).abs() < 0.01, "{r}");
+        let cp = |s: &CombState| s.gamma_f * RU / (s.molar_mass * 1e-3) / (s.gamma_f - 1.0);
+        let rf = cp(&b) * (b.tc - T_WALL_REF) / (cp(&a) * (a.tc - T_WALL_REF));
+        assert!(rf > 1.0, "{rf}");
+        assert!(a.cp_wall > 1000.0 && a.cp_wall < 5000.0);
     }
 }
