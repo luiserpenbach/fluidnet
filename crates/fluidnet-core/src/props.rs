@@ -253,7 +253,77 @@ impl FluidTable {
     /// the saturation point as an end point, so liquid and vapour data are never
     /// mixed across the saturation line.
     pub fn props_ph(&self, p: f64, h: f64) -> Props {
-        let pc = p.clamp(self.pmin, self.pmax);
+        if p < self.pmin {
+            // below the table: ideal-gas extrapolation at constant h (rho ~ P),
+            // keeping derivatives smooth down to vacuum
+            let mut pr = self.props_ph(self.pmin, h);
+            let p = p.max(1e-9);
+            let r = self.pmin / p;
+            pr.v *= r;
+            pr.rho /= r;
+            pr.dvdp = -pr.v / p;
+            pr.dvdh *= r;
+            pr.p = p;
+            pr.x = f64::NAN;
+            return pr;
+        }
+        let pc = p.min(self.pmax);
+        let raw = self.props_ph_sat(pc, h);
+        // Blend the compressibility derivatives across the saturation lines over
+        // a narrow quality band. The equilibrium derivative (dv/dP)_h jumps by
+        // orders of magnitude at x = 0; a smooth transition (a short relaxation
+        // zone) keeps implicit integration efficient when liquid lines cavitate.
+        const BAND: f64 = 0.01;
+        if let Some(st) = self.sat_full(pc) {
+            let dhv = st.hv - st.hl;
+            let x = (raw.h - st.hl) / dhv;
+            let blend = |line_h: f64, on_low: Props, on_high: Props, xr: f64| -> Props {
+                let w = smoothstep_band((xr + BAND) / (2.0 * BAND));
+                let mut pr = raw;
+                pr.dvdp = (1.0 - w) * on_low.dvdp + w * on_high.dvdp;
+                pr.dvdh = (1.0 - w) * on_low.dvdh + w * on_high.dvdh;
+                let rho = pr.rho;
+                let drdp_s = -rho * rho * (pr.dvdp + pr.dvdh * pr.v);
+                pr.a = if drdp_s > 0.0 {
+                    (1.0 / drdp_s).sqrt()
+                } else {
+                    0.0
+                };
+                let _ = line_h;
+                pr
+            };
+            if x.abs() < BAND {
+                let liq = if x <= 0.0 {
+                    raw
+                } else {
+                    self.props_ph_sat(pc, st.hl)
+                };
+                let tp = if x > 0.0 {
+                    raw
+                } else {
+                    self.two_phase(pc, st.hl + 1e-9 * dhv, &st)
+                };
+                return blend(st.hl, liq, tp, x);
+            }
+            if (x - 1.0).abs() < BAND {
+                let tp = if x < 1.0 {
+                    raw
+                } else {
+                    self.two_phase(pc, st.hv - 1e-9 * dhv, &st)
+                };
+                let vap = if x >= 1.0 {
+                    raw
+                } else {
+                    self.props_ph_sat(pc, st.hv)
+                };
+                return blend(st.hv, tp, vap, x - 1.0);
+            }
+        }
+        raw
+    }
+
+    /// Saturation-aware lookup without derivative blending.
+    fn props_ph_sat(&self, pc: f64, h: f64) -> Props {
         if let Some(st) = self.sat_full(pc) {
             let hc = h.clamp(self.hmin_at(pc), self.h_hi());
             if hc > st.hl && hc < st.hv {
@@ -661,6 +731,12 @@ impl FluidTable {
         }
         Some(0.5 * (lo + hi))
     }
+}
+
+#[inline]
+fn smoothstep_band(x: f64) -> f64 {
+    let t = x.clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
 }
 
 /// Saturation state at one pressure, with d/dP slopes along the saturation line.

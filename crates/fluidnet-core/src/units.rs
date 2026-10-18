@@ -19,6 +19,13 @@ pub enum Dim {
     Time,
     Power,
     HeatFlux,
+    /// Rotational speed (SI: rad/s).
+    Speed,
+    Inertia,
+    Torque,
+    Density,
+    /// Heat transfer coefficient.
+    Htc,
     None,
 }
 
@@ -34,6 +41,11 @@ impl Dim {
             Dim::Time => "s",
             Dim::Power => "W",
             Dim::HeatFlux => "W/m2",
+            Dim::Speed => "rad/s",
+            Dim::Inertia => "kg m2",
+            Dim::Torque => "N m",
+            Dim::Density => "kg/m3",
+            Dim::Htc => "W/m2/K",
             Dim::None => "-",
         }
     }
@@ -88,6 +100,17 @@ fn unit_info(u: &str) -> Option<(Dim, f64, f64)> {
         "MW/m2" => (HeatFlux, 1e6, 0.0),
         "" | "-" | "1" => (None, 1.0, 0.0),
         "%" => (None, 0.01, 0.0),
+        "rad/s" => (Speed, 1.0, 0.0),
+        "rpm" | "RPM" | "1/min" => (Speed, std::f64::consts::PI / 30.0, 0.0),
+        "krpm" => (Speed, 1e3 * std::f64::consts::PI / 30.0, 0.0),
+        "Hz" | "rev/s" => (Speed, 2.0 * std::f64::consts::PI, 0.0),
+        "kg m2" | "kg*m2" | "kg m^2" | "kg*m^2" | "kgm2" => (Inertia, 1.0, 0.0),
+        "g cm2" | "g*cm2" | "g cm^2" => (Inertia, 1e-7, 0.0),
+        "N m" | "Nm" | "N*m" => (Torque, 1.0, 0.0),
+        "kg/m3" | "kg/m^3" => (Density, 1.0, 0.0),
+        "g/cm3" | "g/cc" => (Density, 1e3, 0.0),
+        "W/m2/K" | "W/m2K" | "W/(m2 K)" | "W/m^2/K" => (Htc, 1.0, 0.0),
+        "kW/m2/K" | "kW/m2K" => (Htc, 1e3, 0.0),
         _ => return Option::None,
     })
 }
@@ -241,5 +264,8 @@ mod tests {
         assert!((parse_str("6 mm", Dim::Length).unwrap() - 6e-3).abs() < 1e-12);
         assert!(parse_str("6 bar", Dim::Length).is_err());
         assert!((parse_str("50 L", Dim::Volume).unwrap() - 0.05).abs() < 1e-12);
+        assert!((parse_str("30000 rpm", Dim::Speed).unwrap() - 3141.5926535).abs() < 1e-6);
+        assert!((parse_str("0.02 kg m2", Dim::Inertia).unwrap() - 0.02).abs() < 1e-12);
+        assert!((parse_str("12 kW/m2/K", Dim::Htc).unwrap() - 12e3).abs() < 1e-9);
     }
 }

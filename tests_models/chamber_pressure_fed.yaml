@@ -1,0 +1,9 @@
+name: pressure-fed GH2/LOX chamber
+components:
+  - {id: h2_supply, type: boundary, fluid: H2, P: 60 bar, T: 250 K}
+  - {id: lox_supply, type: boundary, fluid: O2, P: 60 bar, T: 90 K}
+  - {id: fuel_inj, type: orifice, diameter: 13 mm, cd: 0.8}
+  - {id: ox_inj, type: orifice, diameter: 8 mm, cd: 0.7}
+  - {id: tca, type: combustion_chamber, throat_diameter: 40 mm, area_ratio: 40, cstar_eff: 1.0, cf_eff: 1.0}
+connections: [[h2_supply, fuel_inj.in], [fuel_inj.out, tca.fuel], [lox_supply, ox_inj.in], [ox_inj.out, tca.ox]]
+simulation: {t_end: 0.1, output_dt: 0.001}

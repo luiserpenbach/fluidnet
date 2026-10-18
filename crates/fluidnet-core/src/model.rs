@@ -76,6 +76,9 @@ pub struct SimSettings {
     pub max_steps: usize,
     /// Solve the steady state at t = 0 and start the transient from it.
     pub start_from_steady: bool,
+    /// Time at which schedules are evaluated for a steady-state solve
+    /// (e.g. the end of a start sequence, when all valves are open).
+    pub steady_time: f64,
 }
 
 impl Default for SimSettings {
@@ -88,6 +91,7 @@ impl Default for SimSettings {
             max_step: None,
             max_steps: 2_000_000,
             start_from_steady: false,
+            steady_time: 0.0,
         }
     }
 }

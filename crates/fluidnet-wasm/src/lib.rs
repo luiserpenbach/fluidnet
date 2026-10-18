@@ -174,7 +174,7 @@ pub unsafe extern "C" fn fn_run(ptr: *const u8, len: usize, mode: i32) -> i32 {
         Err(e) => return err_json(e),
     };
     let res = if mode == 0 {
-        run_steady(&net, 0.0)
+        run_steady(&net, net.sim.steady_time)
     } else {
         run_transient(&net, &mut |t| unsafe { fn_progress(t) } != 0)
     };

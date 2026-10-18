@@ -221,6 +221,12 @@ pub fn restriction_flux(
     }
 }
 
+/// Isentropic gas flux normalised by sqrt(P0 rho0) for pressure ratio eta,
+/// regularised near zero pressure difference.
+pub fn gas_flux(kappa: f64, eta: f64, dp: f64, eps: f64) -> f64 {
+    gas_g(kappa, eta).0 * reg_factor(dp, eps)
+}
+
 /// Churchill (1977) Darcy friction factor, valid and smooth from laminar to
 /// fully rough turbulent flow.
 pub fn churchill_f(re: f64, rel_rough: f64) -> f64 {

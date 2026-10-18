@@ -60,6 +60,8 @@ struct Ctx<'a> {
     atol_scale: f64,
     debug: bool,
     freeze: Option<f64>,
+    /// last Newton rate estimate
+    eta: f64,
 }
 
 impl<'a> Ctx<'a> {
@@ -111,8 +113,10 @@ impl<'a> Ctx<'a> {
         let mut f = std::mem::take(&mut self.f);
         let mut g = std::mem::take(&mut self.g);
         let mut result = (false, false);
-        let mut prev_r = f64::INFINITY;
         let mut prev_d = f64::INFINITY;
+        // Hairer-Wanner stopping rule on the corrections, eta = theta / (1 - theta),
+        // with a loose residual check as a safeguard
+        let mut eta = self.eta.max(1e-4).powf(0.8);
         for it in 0..10 {
             if let Err(e) = self.rhs(t, y, &mut f) {
                 self.f = f;
@@ -129,25 +133,40 @@ impl<'a> Ctx<'a> {
             if !rnorm.is_finite() {
                 break;
             }
-            if rnorm < 0.02 || (prev_d < 1e-3 && rnorm < 0.2) {
+            // a residual below 0.1 tolerance units bounds the stage error well
+            // below the tolerance (the iteration matrix only shrinks residuals
+            // of stable systems); also accepts iterates straddling property kinks
+            if rnorm < 0.1 {
                 result = (true, it >= 4);
                 break;
             }
-            if it >= 2 && rnorm > 0.8 * prev_r {
-                break; // not contracting
-            }
-            prev_r = rnorm;
             self.ls.solve(&mut g);
-            let mut s = 0.0;
+            let mut sq = 0.0;
             for i in 0..n {
                 y[i] += g[i];
                 let r = g[i] / self.wt[i];
-                s += r * r;
+                sq += r * r;
             }
-            prev_d = (s / n.max(1) as f64).sqrt();
-            if !self.valid(y) || !prev_d.is_finite() {
+            let d = (sq / n.max(1) as f64).sqrt();
+            if !self.valid(y) || !d.is_finite() {
                 break;
             }
+            if it > 0 {
+                let theta = d / prev_d;
+                if theta >= 0.95 {
+                    if self.debug {
+                        eprintln!("   newton diverges: theta {theta:.3} correction {d:.3e} resid {rnorm:.3e}");
+                    }
+                    break;
+                }
+                eta = theta / (1.0 - theta);
+            }
+            if (eta * d < 0.05 || d < 1e-4) && rnorm < 2.0 {
+                self.eta = eta;
+                result = (true, it >= 4);
+                break;
+            }
+            prev_d = d;
         }
         self.f = f;
         self.g = g;
@@ -201,6 +220,7 @@ pub fn integrate(
         atol_scale: opt.atol_scale,
         debug: cfg!(not(target_arch = "wasm32")) && std::env::var("FLUIDNET_DEBUG").is_ok(),
         freeze: opt.freeze_time,
+        eta: 1.0,
     };
 
     let mut t = opt.t0;
@@ -252,6 +272,7 @@ pub fn integrate(
     let e2 = W - (3.0 * W + 1.0) / 3.0;
     let e3 = D - D / 3.0;
     let mut steps_since_progress = 0;
+    let mut consecutive_rejects = 0usize;
 
     while t < opt.t_end - 1e-12 * opt.t_end.abs().max(1.0) {
         if cx.stats.steps + cx.stats.rejected >= opt.max_steps {
@@ -407,6 +428,7 @@ pub fn integrate(
             std::mem::swap(&mut y, &mut y3);
             std::mem::swap(&mut f0, &mut f3);
             cx.stats.steps += 1;
+            consecutive_rejects = 0;
             cx.stats.h_min_used = cx.stats.h_min_used.min(h);
             cx.stats.h_max_used = cx.stats.h_max_used.max(h);
             if landing {
@@ -466,8 +488,11 @@ pub fn integrate(
                 );
             }
             cx.stats.rejected += 1;
+            consecutive_rejects += 1;
             h *= (0.9 * errn.powf(-1.0 / 3.0)).clamp(0.1, 0.5);
-            if !jac_fresh {
+            // an error-test failure says the step was too long, not that J is stale;
+            // refresh only after repeated failures
+            if consecutive_rejects >= 3 && !jac_fresh {
                 cx.jacobian(t, &y)?;
                 jac_fresh = true;
                 jac_age = 0;

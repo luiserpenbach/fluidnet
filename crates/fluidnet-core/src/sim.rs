@@ -242,7 +242,7 @@ pub fn run_model(src: &str, lib: &FluidLibrary, mode: Mode) -> Result<Results> {
     let model = Model::parse(src)?;
     let net = Network::compile(&model, lib)?;
     match mode {
-        Mode::Steady => run_steady(&net, 0.0),
+        Mode::Steady => run_steady(&net, net.sim.steady_time),
         Mode::Transient => run_transient(&net, &mut |_| true),
     }
 }

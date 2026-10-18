@@ -14,6 +14,8 @@ pub enum PKind {
     Choice,
     Int,
     Bool,
+    /// Reference to another component by id (target type in `ParamSpec::target`).
+    Ref,
 }
 
 #[derive(Debug, Clone)]
@@ -30,6 +32,8 @@ pub struct ParamSpec {
     pub help: &'static str,
     /// UI display unit.
     pub unit: &'static str,
+    /// For `PKind::Ref`: the component type referenced.
+    pub target: &'static str,
 }
 
 #[derive(Debug, Clone)]
@@ -62,7 +66,90 @@ const fn q(
         choices: &[],
         help,
         unit,
+        target: "",
     }
+}
+
+const fn r(
+    key: &'static str,
+    label: &'static str,
+    target: &'static str,
+    help: &'static str,
+) -> ParamSpec {
+    ParamSpec {
+        key,
+        label,
+        kind: PKind::Ref,
+        dim: Dim::None,
+        default: None,
+        optional: true,
+        schedulable: false,
+        choices: &[],
+        help,
+        unit: "",
+        target,
+    }
+}
+
+const fn choice(
+    key: &'static str,
+    label: &'static str,
+    choices: &'static [&'static str],
+    default: &'static str,
+    help: &'static str,
+) -> ParamSpec {
+    ParamSpec {
+        key,
+        label,
+        kind: PKind::Choice,
+        dim: Dim::None,
+        default: Some(default),
+        optional: false,
+        schedulable: false,
+        choices,
+        help,
+        unit: "",
+        target: "",
+    }
+}
+
+pub const WALL_MATERIALS: &[&str] = &[
+    "cucrzr",
+    "copper",
+    "grcop42",
+    "nickel",
+    "stainless",
+    "inconel718",
+    "aluminum",
+];
+
+fn drive_params() -> Vec<ParamSpec> {
+    vec![
+        r(
+            "shaft",
+            "Shaft",
+            "shaft",
+            "Shaft this machine is mounted on (torque balance and speed).",
+        ),
+        q(
+            "speed",
+            "Fixed speed",
+            Dim::Speed,
+            "rpm",
+            None,
+            "Prescribed speed instead of a shaft, constant or [[t, speed], ...].",
+        )
+        .sched()
+        .opt(),
+        q(
+            "ratio",
+            "Gear ratio",
+            Dim::None,
+            "-",
+            Some("1"),
+            "Machine speed / shaft speed.",
+        ),
+    ]
 }
 
 impl ParamSpec {
@@ -88,6 +175,7 @@ fn fluid_param(optional: bool) -> ParamSpec {
         choices: &[],
         help: "Working fluid (propagates through connected flow elements).",
         unit: "",
+        target: "",
     }
 }
 
@@ -166,6 +254,7 @@ fn restriction_model() -> ParamSpec {
         choices: &["auto", "incompressible"],
         help: "auto: liquid with cavitation/flashing (omega), two-phase HEM (omega), real-gas isentropic nozzle. incompressible: sqrt(2 rho dP).",
         unit: "",
+        target: "",
     }
 }
 
@@ -297,6 +386,7 @@ pub fn specs() -> Vec<CompSpec> {
             choices: &[],
             help: "Number of finite volumes along the pipe (more resolves pressure waves).",
             unit: "",
+            target: "",
         },
         q(
             "dz",
@@ -337,6 +427,33 @@ pub fn specs() -> Vec<CompSpec> {
         fluid_param(true),
     ];
     pipe.extend(init_params());
+    pipe.extend([
+        ParamSpec {
+            key: "parallel",
+            label: "Parallel channels",
+            kind: PKind::Int,
+            dim: Dim::None,
+            default: Some("1"),
+            optional: false,
+            schedulable: false,
+            choices: &[],
+            help: "Number of identical channels in parallel (cooling jackets). Diameter is per channel.",
+            unit: "",
+            target: "",
+        },
+        q("wall_thickness", "Wall thickness", Dim::Length, "mm", None, "Enables a wall with heat capacity between hot side and coolant (hot-side wall / channel lands).").opt(),
+        choice("wall_material", "Wall material", WALL_MATERIALS, "cucrzr", "Wall material (density, conductivity, Debye heat capacity)."),
+        q("wall_mass_factor", "Wall mass factor", Dim::None, "-", Some("1"), "Multiplier on the wall mass (ribs, closeout, flanges)."),
+        q("wall_T0", "Initial wall temperature", Dim::Temperature, "K", None, "Initial wall temperature (default: initial fluid temperature).").opt(),
+        r("hot_chamber", "Hot gas: chamber", "combustion_chamber", "Combustion chamber that heats this wall (Bartz correlation on chamber gas properties)."),
+        q("hot_area", "Hot-gas area", Dim::Area, "cm2", None, "Hot-gas-side area of the whole line (chamber and nozzle wall it cools).").opt(),
+        q("hot_contraction", "Local area ratio A/At", Dim::None, "-", Some("3"), "Mean local flow area over throat area along the cooled length (Bartz)."),
+        q("hot_htc_factor", "Hot-side HTC factor", Dim::None, "-", Some("1"), "Multiplier on the Bartz coefficient."),
+        q("hot_T", "Hot gas temperature", Dim::Temperature, "K", None, "Prescribed hot-gas temperature instead of a chamber.").sched().opt(),
+        q("hot_htc", "Hot gas HTC", Dim::Htc, "kW/m2/K", None, "Prescribed hot-side heat transfer coefficient (with hot_T).").sched().opt(),
+        q("cool_correction", "Coolant property exponent", Dim::None, "-", Some("0"), "Applies (T_bulk/T_wall)^n to the coolant Nusselt number; 0.55 is common for supercritical hydrogen."),
+        q("cool_area_factor", "Coolant area factor", Dim::None, "-", Some("1"), "Fin effectiveness times extra wetted area of channel walls."),
+    ]);
     v.push(CompSpec {
         kind: "pipe",
         label: "Pipe",
@@ -420,6 +537,7 @@ pub fn specs() -> Vec<CompSpec> {
             choices: &["linear", "equal_percentage", "quick_opening"],
             help: "Effective area vs stem position.",
             unit: "",
+            target: "",
         },
         q(
             "leak",
@@ -573,6 +691,164 @@ pub fn specs() -> Vec<CompSpec> {
         .sched()],
     });
 
+    v.push(CompSpec {
+        kind: "shaft",
+        label: "Shaft",
+        category: "Machines",
+        ports: &[],
+        node_like: false,
+        help: "Rotor with inertia. Pumps and turbines that name it share its speed; J dw/dt = sum of turbine torques - pump torques - losses.",
+        params: vec![
+            q("inertia", "Inertia", Dim::Inertia, "kg m2", None, "Polar moment of inertia of the rotating assembly."),
+            q("N0", "Initial speed", Dim::Speed, "rpm", Some("0 rpm"), "Speed at t = 0."),
+            q("bearing_torque", "Bearing torque", Dim::Torque, "N m", Some("0"), "Speed-independent friction torque (smoothed through zero speed)."),
+            q("viscous_loss", "Viscous loss", Dim::None, "N m s", Some("0"), "Loss torque per unit speed."),
+            q("speed", "Fixed speed", Dim::Speed, "rpm", None, "Prescribe the speed (motor drive) instead of solving the torque balance.").sched().opt(),
+        ],
+    });
+
+    let mut pump = drive_params();
+    pump.extend([
+        q(
+            "design_speed",
+            "Design speed",
+            Dim::Speed,
+            "rpm",
+            None,
+            "Speed of the design point.",
+        ),
+        q(
+            "design_mdot",
+            "Design mass flow",
+            Dim::MassFlow,
+            "kg/s",
+            None,
+            "Mass flow at the design point.",
+        ),
+        q(
+            "design_dp",
+            "Design pressure rise",
+            Dim::Pressure,
+            "bar",
+            None,
+            "Pressure rise at the design point.",
+        ),
+        q(
+            "design_eff",
+            "Design efficiency",
+            Dim::None,
+            "-",
+            Some("0.65"),
+            "Efficiency at the design point (all losses heat the fluid).",
+        ),
+        q(
+            "design_density",
+            "Design density",
+            Dim::Density,
+            "kg/m3",
+            None,
+            "Inlet density of the design point (default: initial inlet state).",
+        )
+        .opt(),
+        q(
+            "shutoff_head",
+            "Shutoff head ratio",
+            Dim::None,
+            "-",
+            Some("1.15"),
+            "Head at zero flow over design head, same speed.",
+        ),
+        q(
+            "shutoff_power",
+            "Shutoff power ratio",
+            Dim::None,
+            "-",
+            Some("0.45"),
+            "Shaft power at zero flow over design power, same speed.",
+        ),
+        q(
+            "inertance",
+            "Fluid inertance L/A",
+            Dim::None,
+            "1/m",
+            Some("2000"),
+            "Inertia of the fluid inside the pump.",
+        ),
+    ]);
+    v.push(CompSpec {
+        kind: "pump",
+        label: "Pump",
+        category: "Machines",
+        ports: &["in", "out"],
+        node_like: false,
+        help: "Centrifugal pump with affinity-law head and power maps scaled from one design point; works in all flow and speed ranges.",
+        params: pump,
+    });
+
+    let mut turb = drive_params();
+    turb.extend(area_params("0.95"));
+    turb.extend([
+        q(
+            "mean_diameter",
+            "Rotor mean diameter",
+            Dim::Length,
+            "mm",
+            None,
+            "Blade mean diameter (sets blade speed u = w D/2).",
+        ),
+        q(
+            "design_eff",
+            "Peak efficiency",
+            Dim::None,
+            "-",
+            Some("0.6"),
+            "Total-to-static efficiency at the design velocity ratio.",
+        ),
+        q(
+            "design_velocity_ratio",
+            "Design velocity ratio u/c0",
+            Dim::None,
+            "-",
+            Some("0.35"),
+            "Blade speed over spouting velocity at peak efficiency.",
+        ),
+    ]);
+    if let Some(p) = turb.iter_mut().find(|p| p.key == "diameter") {
+        p.label = "Nozzle throat diameter";
+        p.help = "Equivalent diameter of the total stator nozzle throat area (or give area).";
+    }
+    v.push(CompSpec {
+        kind: "turbine",
+        label: "Turbine",
+        category: "Machines",
+        ports: &["in", "out"],
+        node_like: false,
+        help: "Gas turbine: nozzle flow (choked or subsonic, real gas) and impulse-stage torque, linear in blade speed, from stall to runaway.",
+        params: turb,
+    });
+
+    v.push(CompSpec {
+        kind: "combustion_chamber",
+        label: "Combustion chamber",
+        category: "Engine",
+        ports: &["fuel", "ox"],
+        node_like: false,
+        help: "Thrust chamber: equilibrium combustion tables (Cantera), chamber filling dynamics, choked throat, nozzle thrust and Isp.",
+        params: vec![
+            q("throat_diameter", "Throat diameter", Dim::Length, "mm", None, "Nozzle throat diameter (or give throat_area).").opt(),
+            q("throat_area", "Throat area", Dim::Area, "cm2", None, "Nozzle throat area.").opt(),
+            q("volume", "Chamber volume", Dim::Volume, "L", None, "Volume up to the throat (default L* x At).").opt(),
+            q("l_star", "Characteristic length L*", Dim::Length, "m", Some("0.9 m"), "Used for the volume when none is given."),
+            q("area_ratio", "Nozzle area ratio", Dim::None, "-", Some("40"), "Exit over throat area."),
+            q("p_ambient", "Ambient pressure", Dim::Pressure, "bar", Some("0"), "Back pressure on the nozzle (0 for vacuum).").sched(),
+            q("cstar_eff", "c* efficiency", Dim::None, "-", Some("0.98"), "Combustion efficiency on c*."),
+            q("cf_eff", "Nozzle efficiency", Dim::None, "-", Some("0.98"), "Efficiency on the thrust coefficient (divergence, friction)."),
+            q("ignition_time", "Ignition time", Dim::Time, "s", None, "Combustion starts here (default: burning from t = 0). Before, the chamber passes cold propellant gas.").opt(),
+            q("ignition_ramp", "Ignition ramp", Dim::Time, "ms", Some("20 ms"), "Duration of the transition to full combustion."),
+            q("P0", "Initial pressure", Dim::Pressure, "bar", Some("1 bar"), "Chamber pressure at t = 0."),
+        ],
+    });
+
     v
 }
 
@@ -590,7 +866,8 @@ pub fn catalog_json() -> Value {
                 "node_like": c.node_like, "help": c.help,
                 "params": c.params.iter().map(|p| json!({
                     "key": p.key, "label": p.label,
-                    "kind": match p.kind { PKind::Quantity => "quantity", PKind::Fluid => "fluid", PKind::Choice => "choice", PKind::Int => "int", PKind::Bool => "bool" },
+                    "kind": match p.kind { PKind::Quantity => "quantity", PKind::Fluid => "fluid", PKind::Choice => "choice", PKind::Int => "int", PKind::Bool => "bool", PKind::Ref => "ref" },
+                    "target": p.target,
                     "dim": format!("{:?}", p.dim), "si": p.dim.si_unit(), "unit": p.unit,
                     "default": p.default, "optional": p.optional || p.default.is_some(),
                     "required": !p.optional && p.default.is_none(),

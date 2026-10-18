@@ -1,0 +1,40 @@
+name: Closed expander start
+description: Tank-head start of the 20 kN LOX/LH2 closed expander. The main fuel valve opens onto a warm jacket and turbine; boil-off from the hardware spins the turbopump before ignition at 0.5 s. The LOX valve holds a 1.6 % idle area until 3 s to keep the mixture fuel-rich during bootstrap, then ramps open; the engine climbs to its 40 bar, 20 kN design point on its own power balance and the bypass valve goes to its nominal setting at 6 s.
+components:
+  - {id: lh2_tank, type: boundary, fluid: H2, P: 3 bar, T: 21 K, ui: {x: 20, y: 60}}
+  - {id: fuel_pump, type: pump, shaft: turbopump, design_speed: 50000 rpm, design_mdot: 0.7 kg/s, design_dp: 105 bar, design_eff: 0.62, ui: {x: 170, y: 70}}
+  - {id: fuel_line, type: pipe, length: 0.8 m, diameter: 16 mm, segments: 1, ui: {x: 320, y: 70}}
+  - {id: jacket_inlet, type: junction, volume: 0.3 L, ui: {x: 400, y: 160}}
+  - {id: jacket, type: pipe, length: 0.6 m, diameter: 2.6 mm, parallel: 60, segments: 8, roughness: 2 um, wall_thickness: 1.2 mm, wall_material: cucrzr, wall_mass_factor: 2.0, wall_T0: 280 K, hot_chamber: tca, hot_area: 1900 cm2, hot_contraction: 3, hot_htc_factor: 0.6, cool_correction: 0.55, P0: 3 bar, T0: 280 K, ui: {x: 480, y: 70}}
+  - {id: turbine_inlet, type: junction, volume: 0.3 L, ui: {x: 570, y: 160}}
+  - {id: turbine, type: turbine, shaft: turbopump, diameter: 10.8769 mm, cd: 0.95, mean_diameter: 140 mm, design_eff: 0.62, design_velocity_ratio: 0.35, ui: {x: 640, y: 40}}
+  - {id: tbv, type: valve, diameter: 8 mm, cd: 0.8, opening: [[0, 0], [5.5, 0], [6, 0.0586]], ui: {x: 640, y: 150}}
+  - {id: turbine_exit, type: junction, volume: 0.5 L, P0: 3 bar, T0: 280 K, ui: {x: 790, y: 80}}
+  - {id: mfv, type: valve, diameter: 20 mm, cd: 0.8, opening: [[0, 0], [0.05, 0], [0.2, 1]], ui: {x: 900, y: 70}}
+  - {id: fuel_injector, type: orifice, diameter: 16.9046 mm, cd: 0.8, ui: {x: 1040, y: 70}}
+  - {id: tca, type: combustion_chamber, throat_diameter: 57 mm, area_ratio: 60, l_star: 0.9 m, ignition_time: 0.5, ignition_ramp: 50 ms, ui: {x: 1190, y: 160}}
+  - {id: turbopump, type: shaft, inertia: 0.006 kg m2, N0: 0 rpm, bearing_torque: 0.05 N m, ui: {x: 400, y: 300}}
+  - {id: lox_tank, type: boundary, fluid: O2, P: 3 bar, T: 90 K, ui: {x: 20, y: 250}}
+  - {id: lox_pump, type: pump, shaft: turbopump, ratio: 0.3, design_speed: 15000 rpm, design_mdot: 3.85 kg/s, design_dp: 60 bar, design_eff: 0.65, ui: {x: 170, y: 260}}
+  - {id: lox_line, type: pipe, length: 1.0 m, diameter: 25 mm, segments: 4, ui: {x: 560, y: 260}}
+  - {id: mov, type: valve, diameter: 22 mm, cd: 0.8, characteristic: equal_percentage, opening: [[0, 0], [0.5, 0], [0.6, 0.15], [3, 0.15], [5.5, 1]], ui: {x: 760, y: 260}}
+  - {id: lox_injector, type: orifice, diameter: 9.8370 mm, cd: 0.7, ui: {x: 1000, y: 260}}
+connections:
+  - [lh2_tank, fuel_pump.in]
+  - [fuel_pump.out, fuel_line.in]
+  - [fuel_line.out, jacket_inlet]
+  - [jacket_inlet, jacket.in]
+  - [jacket.out, turbine_inlet]
+  - [turbine_inlet, turbine.in]
+  - [turbine_inlet, tbv.in]
+  - [turbine.out, turbine_exit]
+  - [tbv.out, turbine_exit]
+  - [turbine_exit, mfv.in]
+  - [mfv.out, fuel_injector.in]
+  - [fuel_injector.out, tca.fuel]
+  - [lox_tank, lox_pump.in]
+  - [lox_pump.out, lox_line.in]
+  - [lox_line.out, mov.in]
+  - [mov.out, lox_injector.in]
+  - [lox_injector.out, tca.ox]
+simulation: {t_end: 10, output_dt: 0.005, rtol: 1e-4, steady_time: 10}

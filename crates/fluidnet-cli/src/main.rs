@@ -283,7 +283,7 @@ fn main() -> ExitCode {
         return usage();
     }
     let res = if has("--steady") {
-        run_steady(&net, 0.0)
+        run_steady(&net, net.sim.steady_time)
     } else {
         run_transient(&net, &mut |_| true)
     };

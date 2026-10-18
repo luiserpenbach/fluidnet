@@ -29,6 +29,9 @@ fn steady_weights(net: &Network, y: &[f64], w: &mut [f64]) {
             StateKind::Pressure => 1e-2 + 1e-7 * y[i].abs(),
             StateKind::Enthalpy => 1e-1 + 1e-7 * y[i].abs().max(2e5),
             StateKind::MassFlow => 1e-9 + 1e-7 * y[i].abs(),
+            StateKind::Speed => 1e-3 + 1e-7 * y[i].abs(),
+            StateKind::WallTemp => 1e-4 + 1e-7 * y[i].abs(),
+            StateKind::MixFrac => 1e-8,
         };
     }
 }
@@ -205,6 +208,10 @@ fn ptc(
         }
         if !accepted {
             cx.st.iterations += it + 1;
+            if rn < 1e-3 {
+                cx.st.method = "pseudo-transient (quasi-steady)".into();
+                return Ok(Ok(y));
+            }
             return Ok(Err((rn, 0)));
         }
         if small >= 2 {
@@ -227,6 +234,12 @@ fn ptc(
         }
     }
     cx.st.iterations += max_iter;
+    // rates this small (well below 1e-3 of the steady weights per second) are
+    // quasi-steady: e.g. a tank draining through a leak over days
+    if rn < 1e-3 {
+        cx.st.method = "pseudo-transient (quasi-steady)".into();
+        return Ok(Ok(y));
+    }
     Ok(Err((rn, worst)))
 }
 
@@ -235,11 +248,12 @@ fn march(net: &Network, y0: &[f64], t: f64) -> Option<Vec<f64>> {
     use crate::solver::transient::{integrate, TransientOptions};
     let opts = TransientOptions {
         t0: 0.0,
-        t_end: 1e7,
+        // march toward equilibrium; Newton polishes the result
+        t_end: 1e9,
         rtol: 1e-4,
         atol_scale: 1.0,
-        max_step: 1e6,
-        max_steps: 200_000,
+        max_step: 1e8,
+        max_steps: 20_000,
         out_times: vec![],
         freeze_time: Some(t),
         steady_tol: Some(1e-3),
@@ -251,27 +265,25 @@ fn march(net: &Network, y0: &[f64], t: f64) -> Option<Vec<f64>> {
     };
     match integrate(net, y0, &opts, &mut sink, &mut |_| true) {
         Ok(_) => last,
-        Err(_) => None,
+        Err(e) => {
+            if cfg!(not(target_arch = "wasm32")) && std::env::var("FLUIDNET_DEBUG").is_ok() {
+                eprintln!("steady: time-marching failed: {e}");
+            }
+            None
+        }
     }
 }
 
-pub fn solve(
+/// Try the direct methods (Newton, then pseudo-transient continuation, then
+/// time-marching) on one network.
+fn solve_direct(
     net: &Network,
     y0: &[f64],
     t: f64,
     max_iter: usize,
-) -> Result<(Vec<f64>, SteadyStats)> {
+    st_out: &mut SteadyStats,
+) -> Result<std::result::Result<Vec<f64>, (f64, usize)>> {
     let n = net.n_states;
-    if n == 0 {
-        return Ok((
-            vec![],
-            SteadyStats {
-                converged: true,
-                method: "algebraic".into(),
-                ..Default::default()
-            },
-        ));
-    }
     let (jb, ls) = JacobianBuilder::new(net);
     let mut cx = Ctx {
         net,
@@ -283,27 +295,88 @@ pub fn solve(
         st: SteadyStats::default(),
         debug: cfg!(not(target_arch = "wasm32")) && std::env::var("FLUIDNET_DEBUG").is_ok(),
     };
+    fn finish(cx: &mut Ctx, st_out: &mut SteadyStats, method: &str) {
+        st_out.iterations += cx.st.iterations;
+        st_out.rhs_evals += cx.st.rhs_evals;
+        st_out.jacobians += cx.st.jacobians;
+        st_out.residual_history.append(&mut cx.st.residual_history);
+        cx.st.iterations = 0;
+        cx.st.rhs_evals = 0;
+        cx.st.jacobians = 0;
+        if !method.is_empty() {
+            st_out.method = if st_out.method.is_empty() {
+                method.to_string()
+            } else {
+                format!("{} + {method}", st_out.method)
+            };
+        }
+    }
     if let Some(y) = newton(&mut cx, y0, 40)? {
-        cx.st.converged = true;
-        cx.st.method = "newton".into();
-        return Ok((y, cx.st));
+        finish(&mut cx, st_out, "newton");
+        return Ok(Ok(y));
     }
     let ptc_res = ptc(&mut cx, y0, max_iter.min(150))?;
     if let Ok(y) = ptc_res {
-        cx.st.converged = true;
-        cx.st.method = "pseudo-transient".into();
-        return Ok((y, cx.st));
+        let m = if cx.st.method.is_empty() {
+            "pseudo-transient".to_string()
+        } else {
+            cx.st.method.clone()
+        };
+        finish(&mut cx, st_out, &m);
+        return Ok(Ok(y));
     }
-    // time-march with frozen inputs using the transient integrator, then polish
     if let Some(ym) = march(net, y0, t) {
         if let Some(y) = newton(&mut cx, &ym, 40)? {
-            cx.st.converged = true;
-            cx.st.method = "time-marching + newton".into();
-            return Ok((y, cx.st));
+            finish(&mut cx, st_out, "time-marching + newton");
+            return Ok(Ok(y));
         }
     }
-    match ptc_res {
-        Ok(_) => unreachable!(),
+    finish(&mut cx, st_out, "");
+    Ok(ptc_res)
+}
+
+pub fn solve(
+    net: &Network,
+    y0: &[f64],
+    t: f64,
+    max_iter: usize,
+) -> Result<(Vec<f64>, SteadyStats)> {
+    if net.n_states == 0 {
+        return Ok((
+            vec![],
+            SteadyStats {
+                converged: true,
+                method: "algebraic".into(),
+                ..Default::default()
+            },
+        ));
+    }
+    let mut st = SteadyStats::default();
+    let free: Vec<usize> = (0..net.shafts.len())
+        .filter(|&s| net.shafts[s].state.is_some() && net.shafts[s].w_guess > 0.0)
+        .collect();
+    // turbomachinery: hold the shafts at their speed guesses first, then release
+    if !free.is_empty() {
+        let mut held = net.clone();
+        let mut yh = y0.to_vec();
+        for &s in &free {
+            held.shafts[s].hold = Some(net.shafts[s].w_guess);
+            yh[net.shafts[s].state.unwrap()] = net.shafts[s].w_guess;
+        }
+        if let Ok(Ok(y1)) = solve_direct(&held, &yh, t, max_iter, &mut st) {
+            st.method = format!("shaft continuation ({})", st.method);
+            if let Ok(y) = solve_direct(net, &y1, t, max_iter, &mut st)? {
+                st.converged = true;
+                return Ok((y, st));
+            }
+        }
+        st.method.clear();
+    }
+    match solve_direct(net, y0, t, max_iter, &mut st)? {
+        Ok(y) => {
+            st.converged = true;
+            Ok((y, st))
+        }
         Err((rn, worst)) => Err(Error::Solver(format!(
             "steady state did not converge (residual {rn:.3e}, largest in {}). The system may have no steady state (e.g. a closed tank that keeps filling) or may oscillate.",
             net.state_names.get(worst).map(|s| s.as_str()).unwrap_or("?")

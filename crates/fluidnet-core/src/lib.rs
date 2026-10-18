@@ -8,8 +8,10 @@
 //! * `sim`      high-level run functions and results
 
 pub mod catalog;
+pub mod combustion;
 pub mod error;
 pub mod flow;
+pub mod machines;
 pub mod model;
 pub mod network;
 pub mod props;

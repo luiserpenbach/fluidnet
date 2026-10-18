@@ -1,0 +1,7 @@
+name: water pump at design point
+components:
+  - {id: suction, type: boundary, fluid: H2O, P: 2 bar, T: 293.15 K}
+  - {id: pump, type: pump, speed: 3000 rpm, design_speed: 3000 rpm, design_mdot: 5 kg/s, design_dp: 10 bar, design_eff: 0.7}
+  - {id: valve, type: orifice, diameter: 20 mm, cd: 0.7}
+  - {id: out, type: boundary, fluid: H2O, P: 2 bar, T: 293.15 K}
+connections: [[suction, pump.in], [pump.out, valve.in], [valve.out, out]]

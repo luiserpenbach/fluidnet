@@ -144,3 +144,70 @@ fn all_examples_run_steady_and_transient() {
         }
     }
 }
+
+#[test]
+fn pump_matches_affinity_map_hand_calculation() {
+    // water pump at design speed against an orifice; reference solved with
+    // the same map in Python (scipy brentq): 8.38489 kg/s, efficiency 0.6229
+    let r = run("tests_models/pump_design.yaml", Mode::Steady);
+    assert!(rel(r.last("pump.mdot").unwrap(), 8.38489) < 2e-4);
+    assert!((r.last("pump.eff").unwrap() - 0.6229).abs() < 5e-4);
+}
+
+#[test]
+fn chamber_pressure_and_thrust_match_tables() {
+    // independent Python check of Pc = mdot c*/At and the ideal CF at eps 40
+    let r = run("tests_models/chamber_pressure_fed.yaml", Mode::Steady);
+    let pc = r.last("tca.Pc").unwrap();
+    assert!(rel(pc, 45.4245e5) < 1e-4, "{pc}");
+    let f = r.last("tca.thrust").unwrap();
+    assert!(rel(f, 11132.5) < 1e-3, "{f}");
+    assert!((r.last("tca.OF").unwrap() - 5.5165).abs() < 1e-3);
+}
+
+#[test]
+fn expander_cycle_conserves_energy_and_torque() {
+    let r = run("examples/expander_cycle.yaml", Mode::Steady);
+    let g = |n: &str| r.last(n).unwrap_or_else(|| panic!("{n}"));
+    // shaft: turbine torque = fuel pump + geared LOX pump + bearing friction
+    let w = g("turbopump.speed");
+    let resid =
+        g("turbine.torque") - g("fuel_pump.torque") - 0.3 * g("lox_pump.torque") - 0.05 * w.tanh();
+    assert!(
+        resid.abs() < 1e-6 * g("turbine.torque"),
+        "torque residual {resid}"
+    );
+    // jacket: enthalpy rise of the hydrogen = heat into the coolant (the first
+    // wall element heats the inlet manifold, so start from the pump outlet)
+    let m = g("jacket.mdot_in");
+    let dh = g("turbine_inlet.h") - g("fuel_pump.out.h");
+    assert!(
+        rel(m * dh, g("jacket.Q")) < 1e-6,
+        "jacket energy {} vs {}",
+        m * dh,
+        g("jacket.Q")
+    );
+    // pump: all shaft power ends up in the fluid
+    let mp = g("fuel_pump.mdot");
+    assert!(
+        rel(
+            mp * (g("fuel_pump.out.h") - g("lh2_tank.h")),
+            g("fuel_pump.power")
+        ) < 1e-6
+    );
+    // mass: chamber throat flow = fuel + oxidizer injection
+    assert!(rel(g("tca.mdot"), g("tca.mdot_fuel") + g("tca.mdot_ox")) < 1e-9);
+    // design point reached by the steady solver with a free shaft
+    assert!(rel(g("tca.Pc"), 40e5) < 0.01 && rel(g("tca.OF"), 5.8) < 0.01);
+}
+
+#[test]
+fn expander_start_reaches_the_steady_design_point() {
+    let start = run("examples/expander_start.yaml", Mode::Transient);
+    let steady = run("examples/expander_cycle.yaml", Mode::Steady);
+    for ch in ["tca.Pc", "tca.thrust", "turbopump.speed", "tca.OF"] {
+        let a = start.last(ch).unwrap();
+        let b = steady.last(ch).unwrap();
+        assert!(rel(a, b) < 0.003, "{ch}: start ends at {a}, steady {b}");
+    }
+}
