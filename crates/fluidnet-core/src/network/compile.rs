@@ -906,6 +906,7 @@ impl Network {
                             })?)
                         }
                     };
+                    let speed = curve_param(p, "speed_eff_curve")?;
                     let map = PumpMap {
                         w_d,
                         q_d: 0.0,
@@ -915,6 +916,7 @@ impl Network {
                         p0,
                         head,
                         power,
+                        speed,
                     };
                     comps[ci].branches.push(branches.len());
                     branches.push(Branch {
@@ -965,6 +967,7 @@ impl Network {
                                         }
                                     }
                                 },
+                                area: area_map_param(p)?,
                             },
                         },
                     });
@@ -1624,6 +1627,26 @@ struct PendingAct {
 }
 
 /// A [[x, y], ...] table parameter as a curve (None when absent).
+/// Turbine area map: [[PR, u/c0, factor], ...].
+fn area_map_param(p: &Params) -> Result<Option<crate::machines::AreaMap>> {
+    let bad = || Error::Model(format!("{}.area_map: give rows [PR, u/c0, factor] with two or more velocity ratios per pressure ratio", p.id));
+    let v = match p.raw("area_map") {
+        None => return Ok(None),
+        Some(v) => v,
+    };
+    let rows = v.as_array().ok_or_else(bad)?;
+    let mut out = Vec::with_capacity(rows.len());
+    for r in rows {
+        let r = r.as_array().ok_or_else(bad)?;
+        let num = |i: usize| r.get(i).and_then(|x| x.as_f64().or_else(|| x.as_str().and_then(|s| s.trim().parse().ok())));
+        match (r.len(), num(0), num(1), num(2)) {
+            (3, Some(a), Some(b), Some(c)) if a > 0.0 && c > 0.0 => out.push((a, b, c)),
+            _ => return Err(bad()),
+        }
+    }
+    crate::machines::AreaMap::new(&out).map(Some).ok_or_else(bad)
+}
+
 fn curve_param(p: &Params, key: &str) -> Result<Option<Curve>> {
     match p.sched_opt(key)? {
         None => Ok(None),

@@ -816,6 +816,7 @@ pub fn specs() -> Vec<CompSpec> {
         ),
         q("head_curve", "Head map", Dim::None, "-", None, "Measured head map [[phi, psi], ...]: psi = (H/H_d)/(N/N_d)^2 vs phi = (Q/Q_d)/(N/N_d); replaces the generic curve above 20 % speed.").sched().opt(),
         q("eff_curve", "Efficiency map", Dim::None, "-", None, "Measured efficiency map [[phi, eta/eta_d], ...] vs the same phi; sets the shaft power map (anchored at shutoff_power at zero flow).").sched().opt(),
+        q("speed_eff_curve", "Efficiency speed correction", Dim::None, "-", None, "Efficiency multiplier vs speed ratio [[N/N_d, factor], ...] (1 at N_d); divides the shaft torque above 20 % speed, faded in from 5 %.").sched().opt(),
         q(
             "inertance",
             "Fluid inertance L/A",
@@ -863,6 +864,7 @@ pub fn specs() -> Vec<CompSpec> {
             "Blade speed over spouting velocity at peak efficiency.",
         ),
         q("eff_curve", "Efficiency map", Dim::None, "-", None, "Measured efficiency map [[u/c0, eta/eta_d], ...] (eta = 0 at u = 0 is added); replaces the parabolic curve.").sched().opt(),
+        q("area_map", "Flow area map", Dim::None, "-", None, "Effective nozzle area factor vs velocity ratio and pressure ratio, [[PR, u/c0, factor], ...]; multiplies the nozzle area (bilinear, held at the table edges).").sched().opt(),
     ]);
     if let Some(p) = turb.iter_mut().find(|p| p.key == "diameter") {
         p.label = "Nozzle throat diameter";

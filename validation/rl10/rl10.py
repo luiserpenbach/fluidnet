@@ -1,24 +1,24 @@
 """RL10A-3-3A validation against the NASA CR-190786 test points.
 
-Steps (python validation/rl10/rl10.py [calibrate|predict|all]):
+Steps (python validation/rl10/rl10.py [all|predict|generic|nominal_tcv|frozen|headcurve]):
 
-1. Calibrate at test point 1 (TP1). Eight unknowns are solved together:
-   - per-point controls: OCV opening (sets O/F), TCV opening (sets thrust);
+1. Calibrate at test point 1 (TP1). Nine unknowns are solved together:
+   - mixture-ratio valve opening (sets O/F); the TCV is held half open;
    - model factors: hot-gas HTC factor, jacket throat-region loss K, turbine
      nozzle area, fuel and LOX injector discharge coefficients, fuel pump
-     head factor, turbine peak efficiency.
-   Targets: O/F and thrust (test inputs), turbine inlet temperature, the
-   pressure drops pump discharge -> venturi inlet -> fuel manifold -> chamber
-   and LOX plenum -> chamber, and the LOX pump speed. The turbine efficiency
-   and TCV bypass that result are compared with the TM-107318 typical point
-   (0.63 and 1.39 %). The nozzle thrust efficiency is set
-   from the TM-107318 typical point (482 psia, O/F 5.26, 16,452 lbf).
-2. Predict TP1..TP5: with the factors frozen, only the OCV and TCV openings
-   are solved per point to match the test O/F and thrust (as done for ROCETS
-   in CR-190786), and the ten measured parameters are compared.
+     head factor, turbine peak efficiency, nozzle thrust efficiency.
+   Targets: O/F and thrust, turbine inlet temperature, the pressure drops
+   pump discharge -> venturi inlet -> fuel manifold -> chamber and
+   LOX plenum -> chamber, the LOX pump speed and the chamber pressure.
+   Pump and turbine maps are the P&W maps of TM-107318 (maps/).
+2. Predict TP1..TP5: with the factors frozen, only the mixture-ratio and TCV
+   openings are solved per point to match the test O/F and thrust (as done for
+   ROCETS in CR-190786), and the ten measured parameters are compared.
+3. At measured speed: shaft speed prescribed, TCV as at TP1; reports the
+   turbopump power balance, also evaluated with the measured pressures.
 
 Writes results.json next to this file and the calibrated factors into
-examples/rl10a33a.yaml.
+examples/rl10a33a.yaml. Comparison cases write results_<case>.json.
 """
 from __future__ import annotations
 
@@ -69,10 +69,15 @@ CAL = [
 # TM-107318 typical point: turbine PR 1.39, dT 24.5 R at about 420 R gives
 # efficiency 0.626 at u/c0 0.314 (peak 0.633 at u/c0 0.35). Reported for comparison.
 TURBINE_EFF_PUBLISHED = 0.633
-# TCV position at TP1 (not measured): fully open. The published typical-point
-# bypass (1.39 % of jacket flow) is about the capacity of the published TCV
-# area (0.0158 in2), so the valve runs near full open.
-TCV_TP1 = 1.0
+# TCV: TM-107318 table 2.6.1 gives 0.0158 in2 (effective area, discharge
+# coefficient included) and 0.0839 lb/s as values "at nominal full-thrust
+# condition (predicted by model)", i.e. a part-open position; the full-open area
+# is not published. The model valve has 0.16 in2 full open, enough that the
+# valve does not saturate at any test point, and is half open at TP1 (TCV
+# position not measured). Option "nominal_tcv" reproduces the fluidnet 0.4
+# assumption (0.0158 in2 taken as the full-open area, fully open at TP1).
+TCV_TP1 = 0.5
+TCV_AREA = None
 CTRL = [("ocv", 0.5, 0.0, 1.0), ("tcv", 0.6, 0.0, 1.0)]
 
 
@@ -82,13 +87,37 @@ _REF = None
 SHUTOFF_HEAD = None
 # comparison option: hot-gas driving potential ('enthalpy' default, 'temperature' = frozen cp (Tc - Tw))
 HOT_DRIVING = None
+# turbomachinery maps: True = measured P&W maps digitized from TM-107318 (in the model
+# file, see maps/), False = generic affinity-law pump curves and parabolic turbine curve
+MEASURED_MAPS = True
+MAP_KEYS = {"fuel_pump_1": ("head_curve", "eff_curve", "speed_eff_curve"),
+            "fuel_pump_2": ("head_curve", "eff_curve", "speed_eff_curve"),
+            "lox_pump": ("head_curve", "eff_curve", "speed_eff_curve"),
+            "turbine": ("eff_curve", "area_map")}
+
+
+def strip_maps(m: dict) -> dict:
+    """Remove the measured maps (generic curves, as in fluidnet 0.4)."""
+    for c in m["components"]:
+        for k in MAP_KEYS.get(c["id"], ()):
+            c.pop(k, None)
+        if c["id"] == "turbine":
+            c["design_velocity_ratio"] = 0.35
+    return m
+
+
+def load_model() -> dict:
+    m = fn.load(MODEL)
+    if TCV_AREA is not None:
+        fn.set_param(m, "tcv", "area", TCV_AREA)
+    return m if MEASURED_MAPS else strip_maps(m)
 
 
 class Engine:
     """Model plus warm-started steady solves."""
 
     def __init__(self, cal: dict, cf_eff: float):
-        self.base = fn.load(MODEL)
+        self.base = load_model()
         self.cal = dict(cal)
         self.cf_eff = cf_eff
         self.last = None
@@ -125,7 +154,7 @@ class Engine:
         solves of this 74-state model are sensitive to the initial guess)."""
         global _REF
         if _REF is None:
-            m = fn.load(MODEL)
+            m = load_model()
             fn.set_param(m, "tcv", "opening", 0.6)
             fn.set_param(m, "mr_valve", "opening", 0.3)
             _REF = fn.run(m, mode="steady")
@@ -288,7 +317,7 @@ def at_speed(calres: dict, verbose=True) -> dict:
     rows = []
     for tp in DATA["points"]:
         eng = Engine(calres["cal"], calres["cf_eff"])
-        eng.base = fn.load(MODEL)
+        eng.base = load_model()
         fn.set_param(eng.base, "turbopump", "speed", tp["test"]["lox_pump_speed"] * 2.5 * RPM)
         tcv = calres["ctrl_tp1"]["tcv"]
         x = brentq(lambda v: eng.solve(tp, {"ocv": v, "tcv": tcv})["of"] - tp["of"], 0.08, 1.0, xtol=1e-6)
@@ -301,9 +330,11 @@ def at_speed(calres: dict, verbose=True) -> dict:
                "thrust_err_pct": (o["thrust"] - tp["thrust"]) / tp["thrust"] * 100,
                "turbine_kW": g("turbine.power") / 1e3, "pumps_kW": pumps / 1e3,
                "power_gap_pct": (g("turbine.power") - pumps - 2.26 * g("turbopump.speed")) / pumps * 100}
+        row.update(power_gap_test_pressures(eng, tp, o))
         rows.append(row)
         if verbose:
-            print(f"{tp['id']} at measured speed: thrust {row['thrust_err_pct']:+.2f} %, turbine - pumps - drag {row['power_gap_pct']:+.1f} % | "
+            print(f"{tp['id']} at measured speed: thrust {row['thrust_err_pct']:+.2f} %, turbine - pumps - drag {row['power_gap_pct']:+.1f} % "
+                  f"(with test pressures {row['power_gap_test_pct']:+.1f} %) | "
                   + " ".join(f"{k.split('_')[0][:4]}{v:+.2f}" for k, v in row["err_pct"].items()))
     out = {"points": rows, **speed_stats(rows)}
     if verbose:
@@ -311,6 +342,38 @@ def at_speed(calres: dict, verbose=True) -> dict:
         print(f"at measured speed, TP2-TP5 ({p['n']} predicted values): mean |e| {p['mean_abs']:.2f} %, max {p['max_abs']:.2f} %, "
               f"within 1 % {p['within_1']*100:.0f} %, within 2 % {p['within_2']*100:.0f} %")
     return out
+
+
+def power_gap_test_pressures(eng: Engine, tp: dict, o: dict) -> dict:
+    """Power balance of the turbopump maps evaluated with the measured
+    pressures, temperature and flows instead of the predicted ones: the
+    turbine isentropic enthalpy drop is taken between the turbine inlet and
+    exit pressures shifted by the venturi-inlet and fuel-manifold errors, at
+    the measured turbine inlet temperature, and the turbine flow is scaled by
+    the fuel-flow error; pump powers are scaled by the measured flow x pressure
+    rise (same efficiencies)."""
+    from scipy.optimize import brentq
+
+    t = tp["test"]
+    g = eng.last.last
+    pin, pout, tin = g("turbine_inlet.P"), g("turbine_exit.P"), g("turbine_inlet.T")
+    pin_t = pin * t["venturi_inlet_P"] / o["venturi_inlet_P"]
+    pout_t = pout * t["fuel_manifold_P"] / o["fuel_manifold_P"]
+    tin_t = t["turbine_inlet_T"] * RANK
+
+    def dhs(p1, t1, p2):
+        a = fn.props("H2", p1, T=t1)
+        t2 = brentq(lambda T: fn.props("H2", p2, T=T)["s"] - a["s"], 25.0, t1)
+        return a["h"] - fn.props("H2", p2, T=t2)["h"]
+
+    turb = g("turbine.power") * dhs(pin_t, tin_t, pout_t) / dhs(pin, tin, pout) * t["fuel_pump_inlet_flow"] / o["fuel_pump_inlet_flow"]
+    fuel_hyd = lambda d: d["fuel_pump_inlet_flow"] * (d["fuel_pump_discharge_P"] - tp["fuel_tank_P"])
+    lox_hyd = lambda d: d["lox_pump_inlet_flow"] * (d["lox_pump_discharge_P"] - tp["lox_tank_P"])
+    pumps = ((g("fuel_pump_1.power") + g("fuel_pump_2.power")) * fuel_hyd(t) / fuel_hyd(o)
+             + g("lox_pump.power") * lox_hyd(t) / lox_hyd(o))
+    drag = 2.26 * g("turbopump.speed")
+    return {"turbine_test_kW": turb / 1e3, "pumps_test_kW": pumps / 1e3, "power_gap_test_pct": (turb - pumps - drag) / pumps * 100,
+            "turbine_pr_model": pin / pout, "turbine_pr_test": pin_t / pout_t}
 
 
 def speed_stats(rows: list) -> dict:
@@ -389,7 +452,7 @@ def summary(rows: list) -> dict:
 
 
 def main():
-    global SHUTOFF_HEAD, HOT_DRIVING
+    global SHUTOFF_HEAD, HOT_DRIVING, MEASURED_MAPS, TCV_TP1, TCV_AREA
     what = sys.argv[1] if len(sys.argv) > 1 else "all"
     t0 = time.time()
     res_file = HERE / "results.json"
@@ -403,6 +466,16 @@ def main():
         SHUTOFF_HEAD = 1.03
         res_file = HERE / "results_headcurve.json"
         calres = calibrate()
+    elif what == "generic":
+        # comparison: generic pump and turbine curves (fluidnet 0.4 model)
+        MEASURED_MAPS = False
+        res_file = HERE / "results_generic.json"
+        calres = calibrate()
+    elif what == "nominal_tcv":
+        # comparison: TCV full-open area = published nominal 0.0158 in2, fully open at TP1 (fluidnet 0.4)
+        TCV_AREA, TCV_TP1 = 0.0158 * IN2, 1.0
+        res_file = HERE / "results_nominal_tcv.json"
+        calres = calibrate()
     elif what in ("calibrate", "all"):
         calres = calibrate()
         write_model(calres)
@@ -412,7 +485,9 @@ def main():
     stats = summary(rows)
     speed = at_speed(calres)
     res_file.write_text(json.dumps({"calibration": calres, "points": rows, "stats": stats, "at_speed": speed,
-                                    "shutoff_head": SHUTOFF_HEAD, "hot_driving": HOT_DRIVING or "enthalpy"}, indent=1))
+                                    "shutoff_head": SHUTOFF_HEAD, "hot_driving": HOT_DRIVING or "enthalpy",
+                                    "maps": "measured" if MEASURED_MAPS else "generic",
+                                    "tcv_tp1": TCV_TP1, "tcv_area_in2": (TCV_AREA / IN2 if TCV_AREA else None)}, indent=1))
     s = stats
     print(f"\nTP2-TP5 predictions, {s['fluidnet_tp2_5']['n']} values:")
     for key, lab in (("fluidnet_tp2_5", "fluidnet"), ("rocets_tp2_5", "ROCETS  "), ("fluidnet_anchored", "fluidnet, TP1 offset removed"), ("rocets_anchored", "ROCETS,   TP1 offset removed")):

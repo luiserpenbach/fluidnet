@@ -11,7 +11,8 @@ following the start description in NASA TM-107318 sec. 2.1 and CR-195478:
 - spark ignition at 0.3 s (first burn);
 - the OCV main orifice opens on LOX pump pressure rise and FCV1 closes on fuel
   pump discharge pressure (pneumatic, one-shot);
-- the TCV opens with chamber pressure (Binder: linear in Pc) with a lag.
+- the TCV opens with chamber pressure (Binder: linear in Pc) with a lag; it is
+  half open at about the TP1 chamber pressure, as in the steady model.
 
 Valve set points are not published; the nominal values below are assumptions
 and the sensitivity runs vary them over the range Binder examined.
@@ -52,7 +53,7 @@ NOMINAL = {
     "ocv_dp": 100.0,  # psid, LOX pump rise that opens the OCV (Binder ran 50-150)
     "fcv1_p": 250.0,  # psia, fuel pump discharge that closes FCV1
     "jacket_T": 540.0,  # R
-    "tcv_pc": (380.0, 470.0),  # psia, TCV closed .. fully open
+    "tcv_pc": (442.35, 502.35),  # psia, TCV closed .. fully open (half open, as in the steady model, at the TP1 chamber pressure)
     "fcv1_open": 0.3,  # partial opening of FCV1 at MES
     "jacket_P": 2.0,  # psia, jacket side before MES (vented overboard)
     "bleed_cd": 0.25,  # OCV start bleed: effective area 0.25 x 0.615 in2
@@ -174,7 +175,7 @@ def main():
         ("ignition", 0.1), ("ignition", 0.4),
         ("fcv1_p", 150.0), ("fcv1_p", 400.0),
         ("jacket_T", 350.0),
-        ("tcv_pc", (300.0, 470.0)),
+        ("tcv_pc", (412.35, 532.35)),
     ]
     for key, val in variants:
         p = dict(NOMINAL)

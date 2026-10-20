@@ -5,3 +5,4 @@ ui/public/
 ui/artifact/
 *.csv
 python/fluidnet/fluids/
+__pycache__/

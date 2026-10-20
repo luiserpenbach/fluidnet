@@ -315,7 +315,10 @@ fn settle(net: &Network, y0: &[f64], t: f64) -> Option<Vec<f64>> {
         atol_scale: 1.0,
         max_step: 0.25,
         max_steps: 50_000,
-        out_times: vec![],
+        // outputs along the way keep the latest state when a small limit cycle
+        // (e.g. a feed-line oscillation) never meets the steady tolerance; the
+        // Newton polish below starts from it
+        out_times: (1..=60).map(|i| 0.5 * i as f64).collect(),
         freeze_time: Some(t),
         steady_tol: Some(1e-3),
     };
@@ -421,7 +424,9 @@ pub fn solve(
         }
     }
     let y0 = &y_guess[..];
-    // latching actuators settle at their commanded position in a steady state
+    // latching actuators settle at their commanded position in a steady state;
+    // the settling transient below replays the input history and keeps them
+    let latched = net;
     let unlatched;
     let net = if net.latch_active && net.actuators.iter().any(|a| a.latch) {
         let mut n = net.clone();
@@ -459,7 +464,7 @@ pub fn solve(
             // last resort: settle with an ordinary transient (bounded steps, free
             // shafts), then polish. Large engine models started from a crude
             // guess can surge or cavitate when marched with huge steps.
-            match settle(net, y_user, t) {
+            match settle(latched, y_user, t) {
                 Some(ys) => {
                     let mut st2 = SteadyStats::default();
                     match solve_direct(net, &ys, t, max_iter, &mut st2)? {

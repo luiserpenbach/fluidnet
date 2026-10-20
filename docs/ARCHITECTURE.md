@@ -114,8 +114,11 @@ brings the turbine inlet temperature from 5–7 % to within 0.7 % of the test da
 Pump and turbine maps: generic (affinity laws from one design point, impulse
 turbine parabola) or tabulated: ψ(φ) and η/η_d(φ) for pumps, converted to a
 power coefficient anchored at the shutoff power so the map holds at zero flow,
-and blended into the generic zero-speed behaviour below 20 % speed; η/η_d(u/c0)
-for turbines, with torque ṁ r c0 η / (2 u/c0), finite at stall.
+and blended into the generic zero-speed behaviour below 20 % speed; an
+efficiency speed correction η(N/N_d) divides the shaft torque (held at its 20 %
+value below that speed and faded out towards 5 %); η/η_d(u/c0) for turbines,
+with torque ṁ r c0 η / (2 u/c0), finite at stall, and a nozzle flow-area factor
+bilinear in u/c0 and pressure ratio (held at the table edges).
 
 ### Combustion chamber (`combustion.rs`)
 
@@ -200,7 +203,9 @@ steps, not on error-test failures.
    by Newton polishing;
 4. last resort: an ordinary transient from the initial state through the actual
    input history up to t (e.g. an engine start sequence), then held at t until
-   the rates are small, then Newton.
+   the rates are small, then Newton. This replay keeps latching valves latched
+   and polishes from the latest state if a small limit cycle (e.g. a feed-line
+   oscillation) never meets the rate tolerance.
 Flow states left at zero get a guess first: pumps at their design flow (and
 imposed mass flows), propagated through the network by mass balance and split
 at branch points in proportion to the effective flow areas. This lets Newton
@@ -216,7 +221,8 @@ time at which schedules are evaluated. Dead-end volumes keep their initial state
 **Pressure-actuated valves**: a valve with `sense` gets a position state with
 first-order lag toward a command linear in the sensed pressure (or difference
 of two pressures; a chamber id senses Pc). `latch` makes the motion one-way in
-transients (pneumatic sequencing valves); steady solves ignore the latch.
+transients (pneumatic sequencing valves); the direct steady methods ignore the
+latch.
 
 **Initial conditions**: nodes without P0/T0 take the state of the nearest
 specified node, propagating first through elements that are open at t = 0, so a

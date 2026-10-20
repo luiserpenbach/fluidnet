@@ -10,51 +10,54 @@ description: >
   operation at test point 1 of CR-190786.
 # Calibrated at TP1 by validation/rl10/rl10.py (all other values are published
 # data or stated assumptions, see docs/VALIDATION.md):
-#   fuel_pump_1/2 design_dp (head factor 0.941 on the published stage heads),
+#   fuel_pump_1/2 design_dp (head factor on the published stage heads),
 #   jacket hot_htc_factor, jacket_up_chamber K, turbine area and design_eff,
-#   fuel_injector cd, lox_injector cd, tca cf_eff; valve settings mr_valve and
-#   tcv opening (TCV assumed fully open at TP1).
+#   fuel_injector cd, lox_injector cd, tca cf_eff; valve setting mr_valve.
+# Pump head, efficiency and speed-correction maps and the turbine efficiency and
+# flow-area maps are the P&W maps of TM-107318 figures 4.1.1-4.1.8, 4.1.16 and
+# 4.1.17 (validation/rl10/maps/). TCV: full-open area 0.16 in2 assumed (the
+# published 0.0158 in2 is the area at the nominal point), half open at TP1.
 components:
   # ---- fuel side
   - {id: lh2_tank, type: boundary, fluid: H2, P: 27 psi, T: 21.444 K, ui: {x: 0, y: 40}}
   - {id: fuel_inlet, type: pipe, P0: 27 psi, T0: 21.5 K, length: 1 m, diameter: 2.84 in, segments: 1, ui: {x: 110, y: 48}}
-  - {id: fuel_pump_1, type: pump, shaft: turbopump, design_speed: 31537 rpm, design_mdot: 6.051 lb/s, design_dp: 491.99 psi, design_eff: 0.581, design_density: 69.656 kg/m3, ui: {x: 230, y: 40}}
+  - {id: fuel_pump_1, type: pump, shaft: turbopump, design_speed: 31537 rpm, design_mdot: 6.051 lb/s, design_dp: 495.44 psi, design_eff: 0.581, design_density: 69.656 kg/m3, head_curve: [[0.4961, 1.0993], [0.7391, 1.0557], [0.8656, 1.0315], [0.9921, 1.0018], [1.1136, 0.9737], [1.2377, 0.9403], [1.3344, 0.9127], [1.4857, 0.8695], [1.7412, 0.7937], [1.9817, 0.709], [2.4828, 0.5355], [2.9788, 0.2972]], eff_curve: [[0.4985, 0.7091], [0.7466, 0.8861], [0.8706, 0.9492], [0.9896, 0.9974], [1.1136, 1.0287], [1.2377, 1.049], [1.3369, 1.0497], [1.4832, 1.0405], [1.7337, 0.985], [1.9817, 0.8972], [2.4828, 0.5989], [2.9813, 0.3203]], speed_eff_curve: [[0, 0], [0.2011, 0.4684], [0.3006, 0.6376], [0.3998, 0.7761], [0.4996, 0.8463], [0.5971, 0.9016], [0.6978, 0.9387], [0.7968, 0.9665], [0.8986, 0.9846], [0.9994, 0.9999], [1.0994, 1.0108], [1.1984, 1.029], [1.2985, 1.0306], [1.3995, 1.0362]], ui: {x: 230, y: 40}}
   - {id: interstage, type: junction, P0: 550 psi, T0: 27 K, volume: 0.5 L, ui: {x: 350, y: 55}}
   - {id: fcv1, type: valve, area: 0.60 in2, cd: 0.6, opening: 0, ui: {x: 330, y: -60}}
-  - {id: fuel_pump_2, type: pump, shaft: turbopump, design_speed: 31537 rpm, design_mdot: 6.051 lb/s, design_dp: 513.86 psi, design_eff: 0.5619, design_density: 68.651 kg/m3, ui: {x: 450, y: 40}}
+  - {id: fuel_pump_2, type: pump, shaft: turbopump, design_speed: 31537 rpm, design_mdot: 6.051 lb/s, design_dp: 517.46 psi, design_eff: 0.5619, design_density: 68.651 kg/m3, head_curve: [[0.463, 1.0831], [0.6991, 1.0526], [0.816, 1.0336], [0.9329, 1.0106], [1.0499, 0.9921], [1.1691, 0.9685], [1.2603, 0.9508], [1.3983, 0.9221], [1.6321, 0.8684], [1.8659, 0.8173], [2.3406, 0.7035], [2.8082, 0.5035]], eff_curve: [[0.4723, 0.6616], [0.7038, 0.826], [0.8184, 0.8996], [0.9329, 0.9649], [1.0475, 1.0249], [1.1621, 1.0655], [1.2556, 1.0847], [1.3936, 1.0949], [1.6344, 1.0573], [1.8659, 1.0048], [2.3335, 0.8019], [2.8035, 0.5387]], speed_eff_curve: [[0, 0], [0.2011, 0.4684], [0.3006, 0.6376], [0.3998, 0.7761], [0.4996, 0.8463], [0.5971, 0.9016], [0.6978, 0.9387], [0.7968, 0.9665], [0.8986, 0.9846], [0.9994, 0.9999], [1.0994, 1.0108], [1.1984, 1.029], [1.2985, 1.0306], [1.3995, 1.0362]], ui: {x: 450, y: 40}}
   - {id: fuel_pump_discharge, type: junction, P0: 1060 psi, T0: 32 K, volume: 0.3 L, ui: {x: 570, y: 55}}
   - {id: fcv2, type: valve, area: 0.30 in2, cd: 0.6, opening: 0, ui: {x: 550, y: -60}}
   - {id: overboard, type: boundary, fluid: H2, P: 0.5 psi, T: 300 K, ui: {x: 440, y: -150}}
   - {id: fuel_duct, type: pipe, P0: 1050 psi, T0: 32 K, length: 1.5 m, diameter: 1.501 in, K: 1.0, segments: 1, ui: {x: 660, y: 48}}
   - {id: jacket_inlet, type: junction, P0: 1040 psi, T0: 32 K, volume: 1.5 L, ui: {x: 780, y: 55}}
-  - {id: jacket_down, type: pipe, P0: 1020 psi, T0: 80 K, length: 1.27 m, diameter: 5.5 mm, parallel: 180, segments: 6, wall_thickness: 0.013 in, wall_material: stainless, wall_mass_factor: 1.5, wall_T0: 300 K, hot_chamber: tca, hot_area: 1.154 m2, hot_contour: [[0, 2.0], [0.25, 9.08], [0.5, 21.27], [0.75, 38.58], [1, 61.0]], hot_htc_factor: 0.93816, cool_correction: 0.55, ui: {x: 860, y: 48}}
+  - {id: jacket_down, type: pipe, P0: 1020 psi, T0: 80 K, length: 1.27 m, diameter: 5.5 mm, parallel: 180, segments: 6, wall_thickness: 0.013 in, wall_material: stainless, wall_mass_factor: 1.5, wall_T0: 300 K, hot_chamber: tca, hot_area: 1.154 m2, hot_contour: [[0, 2.0], [0.25, 9.08], [0.5, 21.27], [0.75, 38.58], [1, 61.0]], hot_htc_factor: 0.93726, cool_correction: 0.55, ui: {x: 860, y: 48}}
   - {id: jacket_turn, type: junction, P0: 1000 psi, T0: 120 K, volume: 2 L, ui: {x: 1000, y: 55}}
-  - {id: jacket_up_nozzle, type: pipe, P0: 980 psi, T0: 160 K, length: 1.27 m, diameter: 5.5 mm, parallel: 180, segments: 6, wall_thickness: 0.013 in, wall_material: stainless, wall_mass_factor: 1.5, wall_T0: 300 K, hot_chamber: tca, hot_area: 1.154 m2, hot_contour: [[0, 61.0], [0.25, 38.58], [0.5, 21.27], [0.75, 9.08], [1, 2.0]], hot_htc_factor: 0.93816, cool_correction: 0.55, ui: {x: 1080, y: 48}}
-  - {id: jacket_up_chamber, type: pipe, P0: 900 psi, T0: 220 K, length: 0.338 m, diameter: 3.5 mm, parallel: 180, segments: 8, K: 8.5078, wall_thickness: 0.013 in, wall_material: stainless, wall_mass_factor: 1.5, wall_T0: 300 K, hot_chamber: tca, hot_area: 0.230 m2, hot_contour: [[0, 2.0], [0.045, 1.457], [0.09, 1.0], [0.32, 2.37], [0.55, 4.31], [1, 4.31]], hot_htc_factor: 0.93816, cool_correction: 0.55, ui: {x: 1220, y: 48}}
+  - {id: jacket_up_nozzle, type: pipe, P0: 980 psi, T0: 160 K, length: 1.27 m, diameter: 5.5 mm, parallel: 180, segments: 6, wall_thickness: 0.013 in, wall_material: stainless, wall_mass_factor: 1.5, wall_T0: 300 K, hot_chamber: tca, hot_area: 1.154 m2, hot_contour: [[0, 61.0], [0.25, 38.58], [0.5, 21.27], [0.75, 9.08], [1, 2.0]], hot_htc_factor: 0.93726, cool_correction: 0.55, ui: {x: 1080, y: 48}}
+  - {id: jacket_up_chamber, type: pipe, P0: 900 psi, T0: 220 K, length: 0.338 m, diameter: 3.5 mm, parallel: 180, segments: 8, K: 8.5038, wall_thickness: 0.013 in, wall_material: stainless, wall_mass_factor: 1.5, wall_T0: 300 K, hot_chamber: tca, hot_area: 0.230 m2, hot_contour: [[0, 2.0], [0.045, 1.457], [0.09, 1.0], [0.32, 2.37], [0.55, 4.31], [1, 4.31]], hot_htc_factor: 0.93726, cool_correction: 0.55, ui: {x: 1220, y: 48}}
   - {id: venturi_inlet, type: junction, P0: 800 psi, T0: 244 K, volume: 1.5 L, ui: {x: 1360, y: 55}}
   - {id: venturi, type: venturi, area: 1.5 in2, cd: 0.98, recovery: 0.9, ui: {x: 1440, y: 48}}
   - {id: turbine_inlet, type: junction, P0: 790 psi, T0: 244 K, volume: 0.5 L, ui: {x: 1560, y: 55}}
-  - {id: turbine, type: turbine, shaft: turbopump, area: 1.2025 in2, cd: 1.0, mean_diameter: 5.90 in, design_eff: 0.73612, design_velocity_ratio: 0.35, ui: {x: 1660, y: -20}}
-  - {id: tcv, type: valve, area: 0.0158 in2, cd: 0.9, opening: 1.0000, ui: {x: 1660, y: 130}}
+  - {id: turbine, type: turbine, shaft: turbopump, area: 1.1566 in2, cd: 1.0, mean_diameter: 5.90 in, design_eff: 0.78839, design_velocity_ratio: 0.371, eff_curve: [[0.0177, 0.1277], [0.0354, 0.2425], [0.053, 0.3455], [0.0707, 0.4375], [0.0884, 0.5195], [0.1061, 0.5923], [0.1237, 0.6566], [0.1414, 0.7133], [0.1591, 0.763], [0.1768, 0.8064], [0.1945, 0.8441], [0.2121, 0.8765], [0.2298, 0.9042], [0.2475, 0.9277], [0.2652, 0.9473], [0.2828, 0.9635], [0.3005, 0.9763], [0.3182, 0.9863], [0.3359, 0.9934], [0.3536, 0.998], [0.3712, 1], [0.3889, 0.9996], [0.4066, 0.9967], [0.4243, 0.9913], [0.4419, 0.9833], [0.4596, 0.9725], [0.4773, 0.9588], [0.495, 0.942], [0.5127, 0.9216], [0.5303, 0.8975], [0.548, 0.8691], [0.5657, 0.8361]], area_map: [[1.2, 0.0707, 1.1755], [1.2, 0.1061, 1.1324], [1.2, 0.1414, 1.0912], [1.2, 0.1768, 1.0602], [1.2, 0.2121, 1.0251], [1.2, 0.2475, 0.9982], [1.2, 0.2828, 0.9806], [1.2, 0.3182, 0.9583], [1.2, 0.3536, 0.9443], [1.2, 0.3889, 0.9337], [1.2, 0.4243, 0.9289], [1.2, 0.4596, 0.9274], [1.4, 0.0707, 1.1895], [1.4, 0.1061, 1.1542], [1.4, 0.1414, 1.1227], [1.4, 0.1768, 1.0889], [1.4, 0.2121, 1.0644], [1.4, 0.2475, 1.0386], [1.4, 0.2828, 1.0164], [1.4, 0.3182, 1], [1.4, 0.3536, 0.9851], [1.4, 0.3889, 0.9717], [1.4, 0.4243, 0.9676], [1.4, 0.4596, 0.9613], [1.8, 0.0354, 1.2504], [1.8, 0.0707, 1.2194], [1.8, 0.1061, 1.1909], [1.8, 0.1414, 1.167], [1.8, 0.1768, 1.1411], [1.8, 0.2475, 1.0982], [1.8, 0.2828, 1.0835], [1.8, 0.3182, 1.0683], [1.8, 0.3536, 1.0527], [1.8, 0.3889, 1.0421], [1.8, 0.4243, 1.0293], [1.8, 0.4596, 1.0227], [2.1, 0.0354, 1.2592], [2.1, 0.0707, 1.2375], [2.1, 0.1061, 1.2172], [2.1, 0.1414, 1.1978], [2.1, 0.1768, 1.18], [2.1, 0.2475, 1.1474], [2.1, 0.3182, 1.12], [2.1, 0.3536, 1.1066], [2.1, 0.3889, 1.098]], ui: {x: 1660, y: -20}}
+  - {id: tcv, type: valve, area: 0.16 in2, cd: 0.9, opening: 0.5000, ui: {x: 1660, y: 130}}
   - {id: turbine_exit, type: junction, P0: 570 psi, T0: 231 K, volume: 1 L, ui: {x: 1800, y: 55}}
   - {id: turbine_duct, type: pipe, P0: 560 psi, T0: 231 K, length: 1 m, diameter: 2.40 in, segments: 1, ui: {x: 1880, y: 48}}
   - {id: fsov, type: valve, area: 3.24 in2, cd: 0.8, opening: 1, ui: {x: 2000, y: 40}}
   - {id: fuel_manifold, type: junction, P0: 534 psi, T0: 231 K, volume: 0.5 L, ui: {x: 2120, y: 55}}
-  - {id: fuel_injector, type: orifice, area: 2.30 in2, cd: 1.0306, ui: {x: 2200, y: 48}}
+  - {id: fuel_injector, type: orifice, area: 2.30 in2, cd: 1.0302, ui: {x: 2200, y: 48}}
   - {id: tca, type: combustion_chamber, throat_area: 18.85 in2, area_ratio: 62.1, volume: 716 in3, cstar_eff: 0.9892, cf_eff: 0.93205, P0: 472 psi, ui: {x: 2340, y: 160}}
   - {id: turbopump, type: shaft, inertia: 0.008768 kg m2, bearing_torque: 2.26 N m, N0: 31700 rpm, ui: {x: 600, y: 230}}
   # ---- oxidizer side
   - {id: lox_tank, type: boundary, fluid: O2, P: 35.8 psi, T: 97.056 K, ui: {x: 0, y: 340}}
   - {id: lox_inlet, type: pipe, P0: 35.8 psi, T0: 97.1 K, length: 1 m, diameter: 2.84 in, segments: 1, ui: {x: 110, y: 348}}
-  - {id: lox_pump, type: pump, shaft: turbopump, ratio: 0.4, design_speed: 12615 rpm, design_mdot: 31.40 lb/s, design_dp: 581.38 psi, design_eff: 0.6422, design_density: 1106.47 kg/m3, ui: {x: 230, y: 340}}
+  - {id: lox_pump, type: pump, shaft: turbopump, ratio: 0.4, design_speed: 12615 rpm, design_mdot: 31.40 lb/s, design_dp: 581.38 psi, design_eff: 0.6422, design_density: 1106.47 kg/m3, head_curve: [[0.2273, 0.958], [0.3364, 0.9748], [0.3938, 0.9824], [0.4523, 0.9902], [0.503, 0.9955], [0.5592, 1.0012], [0.6042, 1.0049], [0.6717, 1.0091], [0.7831, 1.0127], [0.8968, 1.0106], [1.1252, 0.9872], [1.3536, 0.932]], eff_curve: [[0.2262, 0.4257], [0.3376, 0.5824], [0.3938, 0.6459], [0.4512, 0.7041], [0.5063, 0.7532], [0.5637, 0.7978], [0.6087, 0.8293], [0.674, 0.871], [0.7843, 0.9273], [0.8979, 0.9736], [1.1252, 1.0323], [1.3525, 1.0492]], speed_eff_curve: [[0, 0], [0.2011, 0.5841], [0.3007, 0.7079], [0.399, 0.7867], [0.4987, 0.8446], [0.5982, 0.8924], [0.6958, 0.9346], [0.7961, 0.9708], [0.8967, 0.9931], [0.9972, 1.0002], [1.099, 0.9942], [1.1993, 0.9807], [1.3001, 0.9809], [1.4009, 1.0309]], ui: {x: 230, y: 340}}
   - {id: lox_discharge, type: junction, P0: 614 psi, T0: 98 K, volume: 0.5 L, ui: {x: 350, y: 355}}
   - {id: lox_duct, type: pipe, P0: 600 psi, T0: 98 K, length: 1.2 m, diameter: 1.6 in, K: 1.0, segments: 1, ui: {x: 440, y: 348}}
-  - {id: mr_valve, type: valve, area: 2.08 in2, cd: 0.8, opening: 0.4069, ui: {x: 500, y: 430}}
+  - {id: mr_valve, type: valve, area: 2.08 in2, cd: 0.8, opening: 0.4037, ui: {x: 500, y: 430}}
   - {id: ocv_inlet, type: junction, P0: 590 psi, T0: 98 K, volume: 0.2 L, ui: {x: 560, y: 355}}
   - {id: ocv, type: valve, area: 2.08 in2, cd: 0.8, opening: 1, ui: {x: 660, y: 320}}
   - {id: ocv_bleed, type: orifice, area: 0.615 in2, cd: 0.7, ui: {x: 660, y: 420}}
   - {id: lox_plenum, type: junction, P0: 532 psi, T0: 98 K, volume: 1 L, ui: {x: 1900, y: 355}}
-  - {id: lox_injector, type: orifice, area: 1.0 in2, cd: 0.74154, ui: {x: 2200, y: 348}}
+  - {id: lox_injector, type: orifice, area: 1.0 in2, cd: 0.74153, ui: {x: 2200, y: 348}}
 connections:
   - [lh2_tank, fuel_inlet.in]
   - [fuel_inlet.out, fuel_pump_1.in]

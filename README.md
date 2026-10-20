@@ -133,15 +133,17 @@ evaluated for a steady-state solve, e.g. the end of a start sequence).
 | `loss` | in, out | Minor loss K (elbows, tees, filters) |
 | `mass_flow` | in, out | Imposed mass flow (ideal pump or flow controller) |
 | `shaft` | – | Rotor inertia, bearing and viscous losses; or a prescribed speed (motor) |
-| `pump` | in, out | Centrifugal pump, affinity-law head and power maps from one design point, fluid inertance; all losses heat the fluid; NPSH output |
-| `turbine` | in, out | Gas turbine: real-gas nozzle flow (choked or not) and impulse-stage torque linear in blade speed (stall to runaway) |
+| `pump` | in, out | Centrifugal pump, affinity-law head and power maps from one design point or measured head, efficiency and speed-correction maps, fluid inertance; all losses heat the fluid; NPSH output |
+| `turbine` | in, out | Gas turbine: real-gas nozzle flow (choked or not, optional flow-area map) and impulse-stage torque linear in blade speed (stall to runaway) or from a measured efficiency map |
 | `combustion_chamber` | fuel, ox | Equilibrium tables (H2, CH4, ethanol with O2) corrected for injection enthalpy, chamber filling and mixing dynamics, ignition, nozzle thrust and Isp |
 
 Pumps and turbines name a `shaft` (with a gear `ratio`) or take a fixed `speed`.
 Without map data they scale from one design point (affinity laws, impulse
 turbine); measured maps replace the generic curves: pump `head_curve` and
 `eff_curve` as [[φ, ψ]] and [[φ, η/η_d]] in coefficients relative to the
-design point, turbine `eff_curve` as [[u/c0, η/η_d]].
+design point and `speed_eff_curve` [[N/N_d, factor]] (efficiency speed
+correction); turbine `eff_curve` as [[u/c0, η/η_d]] and `area_map`
+[[PR, u/c0, factor]] (nozzle flow area vs velocity and pressure ratio).
 Pipes take `parallel` channels and an optional wall with heat capacity
 (`wall_thickness`, `wall_material`: CuCrZr, copper, GRCop-42, nickel, stainless,
 Inconel 718, aluminium, Debye heat capacity) heated by a chamber
@@ -185,15 +187,17 @@ example opens the turbine bypass from the design point (66 % thrust and back).
 ## Validation against the RL10A-3-3A
 
 `examples/rl10a33a.yaml` is the Pratt & Whitney RL10A-3-3A built from NASA's
-published component data and calibrated at one ground-test point. With the
-measured shaft speed imposed, it predicts the other measured pressures, flows
-and the turbine inlet temperature at the four further test points with 0.9 %
-mean error (largest 3.6 %). Running free, it predicts the four other points with
-2.9 % mean error (NASA's ROCETS with the manufacturer's maps: 1.3 %): the
-generic single-design-point pump and turbine maps leave the turbopump 8–13 %
-short of power at the lowest mixture ratios. `examples/rl10a33a_start.yaml`
-reaches 200 psia 1.51 s after the start signal (measured 1.43–2.56 s). Details,
-error sources and the scripts in docs/VALIDATION.md and `validation/rl10/`.
+published component data, with the manufacturer's pump and turbine maps
+digitized from NASA TM-107318, and calibrated at one ground-test point. Running
+free, with only the thrust control and mixture-ratio valves set to the measured
+thrust and O/F, it predicts the ten measured pressures, flows, temperature and
+speed at the four further test points with 0.62 % mean error and 2.05 % largest
+error (NASA's ROCETS: 1.26 % and 3.13 %). With the measured shaft speed imposed
+the mean error is 0.93 % (largest 2.2 %). `examples/rl10a33a_start.yaml`
+reaches 200 psia 1.14 s after the start signal, faster than the nine measured
+starts (1.43–2.56 s); the start is sensitive to the turbine efficiency, which
+the calibration sets 6 % above the P&W map. Details, the open points and the
+scripts in docs/VALIDATION.md and `validation/rl10/`.
 
 ## Performance
 
@@ -212,9 +216,9 @@ thrust coefficient, shaft torque and jacket energy balances of the expander.
 
 Next:
 
-1. RL10 turbopump maps digitized from NASA TM-107318 (figures 4.1.1–4.1.17)
-   into the tabulated map inputs, to close the power-balance gap of the RL10
-   validation.
+1. Low-speed pump maps in the head/torque vs atan(N/Q) form (TM-107318
+   figures 4.1.10–4.1.15) for starts and shutdowns, replacing the generic
+   curves below 20 % speed; RL10 start re-check.
 2. Design-mode steady state: solve for chosen parameters (orifice areas, valve
    positions, pump speed) to meet targets (Pc, O/F, power balance) inside the
    solver, replacing the external sizing loop.

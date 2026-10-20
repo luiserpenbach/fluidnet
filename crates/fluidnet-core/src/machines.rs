@@ -41,7 +41,9 @@ impl Curve {
 /// pi = (P/P_d)/n³ as functions of the flow coefficient phi = q/n (all relative
 /// to the design point). They replace the generic curves above n = 0.2 and are
 /// blended into them between n = 0.05 and 0.2, so starts from rest keep the
-/// generic zero-speed behaviour.
+/// generic zero-speed behaviour. `speed` is an efficiency multiplier vs
+/// n = N/N_d (Reynolds and clearance effects at part speed); the shaft torque is
+/// divided by it, evaluated at n >= 0.2 and faded in between n = 0.05 and 0.2.
 #[derive(Debug, Clone)]
 pub struct PumpMap {
     pub w_d: f64,
@@ -52,6 +54,7 @@ pub struct PumpMap {
     pub p0: f64,
     pub head: Option<Curve>,
     pub power: Option<Curve>,
+    pub speed: Option<Curve>,
 }
 
 pub struct PumpPoint {
@@ -87,6 +90,13 @@ impl PumpMap {
                 }
             }
         }
+        if let Some(c) = &self.speed {
+            let wgt = smooth01((n.abs() - 0.05) / 0.15);
+            if wgt > 0.0 {
+                let f = c.at(n.abs().max(0.2)).max(0.1);
+                torque *= 1.0 + wgt * (1.0 / f - 1.0);
+            }
+        }
         let dp = rho * g0 * head;
         let power = torque * w;
         let hyd = dp * mdot / rho;
@@ -119,9 +129,62 @@ pub struct TurbineMap {
     pub eta_d: f64,
     pub x_d: f64,
     pub eff: Option<Curve>,
+    pub area: Option<AreaMap>,
+}
+
+/// Nozzle-area factor vs velocity ratio, one curve per pressure ratio;
+/// linear between the pressure ratios, held at the table edges.
+#[derive(Debug, Clone)]
+pub struct AreaMap {
+    pub pr: Vec<f64>,
+    pub curves: Vec<Curve>,
+}
+
+impl AreaMap {
+    /// From [PR, x, factor] triples.
+    pub fn new(rows: &[(f64, f64, f64)]) -> Option<AreaMap> {
+        let mut prs: Vec<f64> = rows.iter().map(|r| r.0).collect();
+        prs.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        prs.dedup_by(|a, b| (*a - *b).abs() < 1e-12);
+        let mut curves = Vec::new();
+        for &pr in &prs {
+            let pts: Vec<(f64, f64)> = rows.iter().filter(|r| (r.0 - pr).abs() < 1e-12).map(|r| (r.1, r.2)).collect();
+            curves.push(Curve::new(pts)?);
+        }
+        if curves.is_empty() {
+            return None;
+        }
+        Some(AreaMap { pr: prs, curves })
+    }
+
+    pub fn at(&self, x: f64, pr: f64) -> f64 {
+        let held = |c: &Curve| c.at(x.clamp(c.x[0], c.x[c.x.len() - 1]));
+        let n = self.pr.len();
+        if n == 1 || pr <= self.pr[0] {
+            return held(&self.curves[0]);
+        }
+        if pr >= self.pr[n - 1] {
+            return held(&self.curves[n - 1]);
+        }
+        let i = self.pr.partition_point(|&v| v <= pr).clamp(1, n - 1) - 1;
+        let f = (pr - self.pr[i]) / (self.pr[i + 1] - self.pr[i]);
+        (1.0 - f) * held(&self.curves[i]) + f * held(&self.curves[i + 1])
+    }
 }
 
 impl TurbineMap {
+    /// Nozzle-area factor at speed w, isentropic enthalpy drop dh_s and pressure ratio pr.
+    pub fn area_factor(&self, w: f64, dh_s: f64, pr: f64) -> f64 {
+        match &self.area {
+            None => 1.0,
+            Some(a) => {
+                let c0 = (2.0 * dh_s.max(0.0)).sqrt();
+                let x = if c0 > 1e-9 { (w * self.r_m / c0).abs() } else { 0.0 };
+                a.at(x, pr)
+            }
+        }
+    }
+
     /// (torque, power to shaft, efficiency, velocity ratio)
     pub fn eval(&self, w: f64, mdot: f64, dh_s: f64) -> (f64, f64, f64, f64) {
         let c0 = (2.0 * dh_s.max(0.0)).sqrt();
@@ -255,6 +318,7 @@ mod tests {
             p0: 0.45,
             head: None,
             power: None,
+            speed: None,
         };
         let p = m.eval(3000.0, 10.0, 1000.0);
         assert!((p.head - 500.0).abs() < 1e-9);
@@ -273,6 +337,7 @@ mod tests {
             eta_d: 0.6,
             x_d: 0.4,
             eff: None,
+            area: None,
         };
         let dh = 2e5;
         let c0 = (2.0 * dh as f64).sqrt();
@@ -298,7 +363,7 @@ mod tests {
         let phis: Vec<f64> = (0..=30).map(|i| i as f64 * 0.05).collect();
         let head = Curve::new(phis.iter().map(|&f| (f, a + (1.0 - a) * f * f)).collect()).unwrap();
         let power = Curve::new(phis.iter().map(|&f| (f, p0 + (1.0 - p0) * f)).collect()).unwrap();
-        let base = PumpMap { w_d: 3000.0, q_d: 0.01, h_d: 500.0, eta_d: 0.6, a, p0, head: None, power: None };
+        let base = PumpMap { w_d: 3000.0, q_d: 0.01, h_d: 500.0, eta_d: 0.6, a, p0, head: None, power: None, speed: None };
         let tab = PumpMap { head: Some(head), power: Some(power), ..base.clone() };
         for &(w, m) in &[(3000.0, 10.0), (2400.0, 7.0), (3300.0, 13.0)] {
             let (g, t) = (base.eval(w, m, 1000.0), tab.eval(w, m, 1000.0));
@@ -308,7 +373,7 @@ mod tests {
         let xd = 0.35;
         let xs: Vec<f64> = (1..=80).map(|i| i as f64 * 0.01).collect();
         let eff = Curve::new(xs.iter().map(|&x| (x, 2.0 * x / xd * (1.0 - x / (2.0 * xd)))).collect());
-        let tb = TurbineMap { r_m: 0.07, eta_d: 0.62, x_d: xd, eff: None };
+        let tb = TurbineMap { r_m: 0.07, eta_d: 0.62, x_d: xd, eff: None, area: None };
         let tt = TurbineMap { eff: eff.map(|c| {
             let mut pts: Vec<(f64, f64)> = c.x.iter().copied().zip(c.y.iter().copied()).collect();
             pts.push((0.0, 0.0));
@@ -321,6 +386,36 @@ mod tests {
             let tol = if w == 0.0 { 0.02 } else { 1e-3 };
             assert!((a1 - a2).abs() < tol * a1.abs().max(1.0), "w {w}: {a1} {a2}");
         }
+    }
+
+    #[test]
+    fn speed_correction_divides_torque() {
+        let sc = Curve::new(vec![(0.0, 0.0), (0.2, 0.5), (0.5, 0.8), (1.0, 1.0), (1.5, 1.0)]).unwrap();
+        let base = PumpMap { w_d: 3000.0, q_d: 0.01, h_d: 500.0, eta_d: 0.6, a: 1.15, p0: 0.45, head: None, power: None, speed: None };
+        let cor = PumpMap { speed: Some(sc), ..base.clone() };
+        // design speed: unchanged; half speed: efficiency x 0.8, torque / 0.8, head unchanged
+        let (b1, c1) = (base.eval(3000.0, 10.0, 1000.0), cor.eval(3000.0, 10.0, 1000.0));
+        assert!((b1.torque - c1.torque).abs() < 1e-9 * b1.torque);
+        let (b2, c2) = (base.eval(1500.0, 5.0, 1000.0), cor.eval(1500.0, 5.0, 1000.0));
+        assert!((c2.torque - b2.torque / 0.8).abs() < 1e-9 * b2.torque);
+        assert!((c2.eff - 0.8 * b2.eff).abs() < 1e-9);
+        assert_eq!(b2.dp, c2.dp);
+        // below 20 % speed the factor is held at its 20 % value and faded out towards 5 %
+        let (b3, c3) = (base.eval(300.0, 1.0, 1000.0), cor.eval(300.0, 1.0, 1000.0));
+        let r = c3.torque / b3.torque;
+        assert!(r > 1.0 && r < 2.0, "{r}");
+        let (b4, c4) = (base.eval(100.0, 1.0, 1000.0), cor.eval(100.0, 1.0, 1000.0));
+        assert!((c4.torque - b4.torque).abs() < 1e-12 * b4.torque.abs().max(1.0));
+    }
+
+    #[test]
+    fn turbine_area_map_bilinear_and_held() {
+        let rows = [(1.2, 0.1, 1.2), (1.2, 0.5, 1.0), (2.0, 0.1, 1.4), (2.0, 0.5, 1.2)];
+        let a = AreaMap::new(&rows).unwrap();
+        assert!((a.at(0.3, 1.2) - 1.1).abs() < 1e-12);
+        assert!((a.at(0.3, 1.6) - 1.2).abs() < 1e-12);
+        assert!((a.at(0.0, 1.0) - 1.2).abs() < 1e-12);
+        assert!((a.at(0.9, 3.0) - 1.2).abs() < 1e-12);
     }
 }
 

@@ -654,12 +654,13 @@ impl Network {
                     let eps = 10.0 + 1e-5 * up.p;
                     let fx = restriction_flux(fl, up, pdn, eps, RestrictionModel::Auto);
                     ev.choked[k] = fx.choked;
-                    let m = sgn * cda * fx.g;
                     let dh_s = match fl.h_ps_near(pdn, up.s, up.h - up.v * (up.p - pdn)) {
                         Some(h2) => (up.h - h2).max(0.0),
                         None => 0.0,
                     };
                     let w = self.drive_speed(drive, ev);
+                    let pr = if pdn > 0.0 { up.p / pdn } else { 1.0 };
+                    let m = sgn * cda * map.area_factor(w, dh_s, pr) * fx.g;
                     let (tq, pw, eff, x) = map.eval(w, m, dh_s);
                     ev.torque[k] = tq;
                     ev.power[k] = -pw;
