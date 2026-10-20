@@ -1626,7 +1626,6 @@ struct PendingAct {
     u0: f64,
 }
 
-/// A [[x, y], ...] table parameter as a curve (None when absent).
 /// Turbine area map: [[PR, u/c0, factor], ...].
 fn area_map_param(p: &Params) -> Result<Option<crate::machines::AreaMap>> {
     let bad = || Error::Model(format!("{}.area_map: give rows [PR, u/c0, factor] with two or more velocity ratios per pressure ratio", p.id));
@@ -1647,6 +1646,7 @@ fn area_map_param(p: &Params) -> Result<Option<crate::machines::AreaMap>> {
     crate::machines::AreaMap::new(&out).map(Some).ok_or_else(bad)
 }
 
+/// A [[x, y], ...] table parameter as a curve (None when absent).
 fn curve_param(p: &Params, key: &str) -> Result<Option<Curve>> {
     match p.sched_opt(key)? {
         None => Ok(None),

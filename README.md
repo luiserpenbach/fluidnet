@@ -192,7 +192,10 @@ digitized from NASA TM-107318, and calibrated at one ground-test point. Running
 free, with only the thrust control and mixture-ratio valves set to the measured
 thrust and O/F, it predicts the ten measured pressures, flows, temperature and
 speed at the four further test points with 0.62 % mean error and 2.05 % largest
-error (NASA's ROCETS: 1.26 % and 3.13 %). With the measured shaft speed imposed
+error (NASA's ROCETS: 1.26 % and 3.13 %). This assumes the thrust control valve
+bypasses 5.9 % of the turbine flow at the calibration point, four times the
+value P&W's model gives for the nominal point; the TCV position was not
+measured. With the measured shaft speed imposed
 the mean error is 0.93 % (largest 2.2 %). `examples/rl10a33a_start.yaml`
 reaches 200 psia 1.14 s after the start signal, faster than the nine measured
 starts (1.43–2.56 s); the start is sensitive to the turbine efficiency, which

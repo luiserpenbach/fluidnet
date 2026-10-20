@@ -92,8 +92,11 @@ impl PumpMap {
         }
         if let Some(c) = &self.speed {
             let wgt = smooth01((n.abs() - 0.05) / 0.15);
-            if wgt > 0.0 {
-                let f = c.at(n.abs().max(0.2)).max(0.1);
+            // efficiency correction on absorbed power only (not when turbining),
+            // held at the table edges
+            if wgt > 0.0 && torque * n > 0.0 {
+                let (lo, hi) = (c.x[0].max(0.2), c.x[c.x.len() - 1]);
+                let f = c.at(n.abs().clamp(lo, hi.max(lo))).max(0.1);
                 torque *= 1.0 + wgt * (1.0 / f - 1.0);
             }
         }

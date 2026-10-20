@@ -66,8 +66,8 @@ CAL = [
     ("turbine_eff", 0.633, 0.3, 0.95),
     ("cf_eff", 0.93, 0.8, 1.05),
 ]
-# TM-107318 typical point: turbine PR 1.39, dT 24.5 R at about 420 R gives
-# efficiency 0.626 at u/c0 0.314 (peak 0.633 at u/c0 0.35). Reported for comparison.
+# TM-107318 typical point: turbine PR 1.39, dT 24.5 R at about 420 R. Kept for
+# reference only; the P&W efficiency map (maps/) is the turbine data used.
 TURBINE_EFF_PUBLISHED = 0.633
 # TCV: TM-107318 table 2.6.1 gives 0.0158 in2 (effective area, discharge
 # coefficient included) and 0.0839 lb/s as values "at nominal full-thrust
