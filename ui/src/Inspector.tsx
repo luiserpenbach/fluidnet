@@ -16,7 +16,7 @@ function textToValue(t: string): any {
 }
 
 function tableToText(v: any[][]): string {
-  return v.map((r) => `${r[0]}, ${r[1]}`).join('\n');
+  return v.map((r) => (Array.isArray(r) ? r.join(', ') : String(r))).join('\n');
 }
 
 function textToTable(t: string): any[][] {
@@ -24,10 +24,7 @@ function textToTable(t: string): any[][] {
     .split('\n')
     .map((l) => l.trim())
     .filter(Boolean)
-    .map((l) => {
-      const [a, ...rest] = l.split(',');
-      return [textToValue(a), textToValue(rest.join(','))];
-    });
+    .map((l) => l.split(',').map((c) => textToValue(c)));
 }
 
 /** Text field that commits on blur / Enter, so typing does not re-run checks per keystroke. */
