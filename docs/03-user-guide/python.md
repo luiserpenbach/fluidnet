@@ -1,0 +1,368 @@
+# Python API
+
+FNT-USR-HBK-004 · Rev A · Released · 2026-11-02 · Owner: Luis Erpenbach
+
+## Purpose
+
+This handbook documents the `fluidnet` Python package: every public function,
+its arguments, return values and errors, the `Results` class, warm starts,
+parameter sweeps in parallel threads, property lookups and model checks. The
+package is the front end for studies (sizing, sensitivity, maps, comparison
+with test data) and for post-processing with numpy, pandas and matplotlib.
+
+The package has two layers:
+
+- `fluidnet._core`, a Rust extension built with PyO3
+  (`crates/fluidnet-py/src/lib.rs`), which parses, compiles and runs models and
+  returns results as JSON metadata plus one block of float64 numbers;
+- `fluidnet` (`python/fluidnet/__init__.py`), which wraps these functions with
+  numpy arrays, dict-based model editing and the `Results` class.
+
+Use the `fluidnet` layer; `_core` is documented here for completeness.
+
+## Prerequisites
+
+- The package built and installed as in
+  [installation, step 4](getting-started.md#4-build-and-install-the-python-package).
+- Python 3.8 or newer with numpy. Optional: matplotlib for `Results.plot`,
+  pandas for `Results.to_dataframe`.
+- Familiarity with the [model file standard](model-files.md) and the
+  [channel names](outputs.md).
+
+The examples below were run with v0.5.0 on Linux; elapsed times depend on the
+machine.
+
+## Quick start
+
+```python
+import fluidnet as fn
+
+res = fn.run("examples/expander_cycle.yaml", mode="steady")
+print(res)                          # <Results 'Closed expander throttling' steady: 208 channels, 272.6 ms>
+print(res.last("tca.Pc") / 1e5)     # 39.96 (bar)
+print(res.units["tca.thrust"])      # N
+
+model = fn.load("examples/expander_cycle.yaml")      # plain dict
+fn.set_param(model, "tbv", "opening", 0.3)
+res2 = fn.run(model, mode="steady", init=res)          # warm start from res
+print(res2.last("tca.thrust"))      # 16600.5 (N)
+```
+
+## Functions
+
+All functions accept a model as a path (`str` or `os.PathLike`), as YAML or
+JSON text, or as a dict with the structure of a model file. A string is read
+as a file if it ends in `.yaml`, `.yml` or `.json` or names an existing file;
+otherwise it is taken as model text. A dict is passed to the core as JSON.
+
+### run
+
+```python
+fn.run(model, mode="transient", steady_time=None, fluids=None, init=None) -> Results
+```
+
+| Argument | Meaning |
+|---|---|
+| `model` | Path, model text or dict. |
+| `mode` | `"transient"` (the run defined by `simulation`) or `"steady"`. |
+| `steady_time` | Time in s at which schedules are evaluated for a steady state; overrides `simulation.steady_time`. Ignored for transients. |
+| `fluids` | Fluid table directory; default `fluids_dir()`. |
+| `init` | Warm start: a `Results` object or a mapping `{state name: value}` (see [Warm starts](#warm-starts)). |
+
+Returns a `Results` object. If a transient stops part-way after its first
+output time, the results up to that time are returned with `res.error` set; no
+exception is raised, so check `res.error`.
+
+Errors:
+
+| Exception | When |
+|---|---|
+| `ValueError` | The model text cannot be parsed (`parse error: ...`), `mode` is not `steady` or `transient`, or the fluid directory holds no tables. |
+| `RuntimeError` | The model does not compile (`model error: ...`), the steady state does not converge, or the transient fails before its first output. |
+| `FileNotFoundError` | A path with a model extension does not exist, or no fluid directory is found. |
+
+The solver releases the global interpreter lock (GIL) while it runs, so
+several `run` calls in different threads run in parallel.
+
+### sweep
+
+```python
+fn.sweep(model, cid, key, values, mode="steady", workers=None) -> list[Results]
+```
+
+Runs one copy of `model` per entry of `values`, with parameter `key` of
+component `cid` set to that value (`cid="simulation"` sets a simulation
+setting), in a thread pool of `workers` threads (default: the number of CPUs).
+Returns the results in the order of `values`. `model` must be a dict (use
+`load` first); it is deep-copied for each run and not modified. Values may be
+numbers, unit strings or tables. `sweep` uses the default fluid directory and
+no warm start; for a sequence of warm-started runs, loop over `run` (see
+[Warm starts](#warm-starts)).
+
+On the two-CPU test machine, eight steady states of the expander example took
+0.98 s in a serial loop and 0.46 s with `sweep`.
+
+### load and save
+
+```python
+fn.load(path) -> dict
+fn.save(model, path) -> None
+```
+
+`load` reads a YAML or JSON file through the core parser and returns a dict
+with the keys `name`, `description`, `components`, `connections` and
+`simulation`. Every simulation setting is present with its default
+(`max_step: None`, `max_steps: 2000000`, ...). Component parameters keep the
+form written in the file (`'P0': '300 bar'`). A parse error raises
+`ValueError`.
+
+`save` writes a dict as YAML, or as JSON if the path ends in `.json`. The YAML
+is generated by the core (block style, component keys in alphabetical order
+after `id` and `type`); comments of the original file are not kept.
+
+### get_param and set_param
+
+```python
+fn.get_param(model, cid, key) -> Any
+fn.set_param(model, cid, key, value) -> dict
+```
+
+`get_param` returns the value of parameter `key` of component `cid` as stored
+in the dict (a number, a unit string, a table), or `None` if it is not set
+(catalog defaults are not filled in). `set_param` sets it, or a simulation
+setting if `cid == "simulation"`, modifies the dict in place and returns it.
+An unknown component id raises `KeyError: "no component 'X'"`. Parameter
+names are not checked here; an unknown name produces a compile warning in the
+run (`res.warnings`).
+
+```python
+fn.set_param(model, "tbv", "opening", [[0, 0.06], [0.5, 0.06], [0.8, 0.6]])
+fn.set_param(model, "fuel_injector", "diameter", "16.9 mm")
+fn.set_param(model, "simulation", "t_end", 3.0)
+```
+
+### props
+
+```python
+fn.props(fluid, P, T=None, h=None, fluids=None) -> dict
+```
+
+Table properties at pressure `P` (Pa) and either temperature `T` (K) or
+specific enthalpy `h` (J/kg); `h` takes precedence if both are given. Returns a
+dict with `P`, `h`, `T`, `rho`, `s`, `cp`, `mu`, `k`, `a` (sound speed) and
+`x`, in SI units. `x` is the thermodynamic quality (h − h_l)/(h_v − h_l): not
+limited to 0–1, so negative for subcooled liquid and above 1 for superheated
+vapour; `None` at or above the critical pressure and below the triple-point
+pressure. Use `h` for two-phase
+states, which are ambiguous in (P, T).
+
+```python
+>>> fn.props("H2", 40e5, T=30)
+{'P': 4000000.0, 'T': 30.0, 'a': 1049.53, 'cp': 13239.4, 'h': 142569.3, 'k': 0.108568,
+ 'mu': 9.40107e-06, 'rho': 64.7078, 's': 3400.82, 'x': None}
+>>> fn.props("O2", 25e5, h=-130000.0)["T"]
+91.4538
+```
+
+(Values rounded here.) An unknown fluid raises `ValueError: unknown fluid X`;
+neither `T` nor `h` raises `ValueError: give h or t`.
+
+### check
+
+```python
+fn.check(model, fluids=None) -> dict
+```
+
+Compiles the model without running it. Returns a dict with `states` (state
+names), `nodes` (node names), `branches` (branch names), `warnings` and
+`channels` (list of `{name, unit}`). A parse or model error raises
+`ValueError`. Use it to list the channel names of a model before a run, or to
+validate generated models.
+
+### catalog
+
+```python
+fn.catalog() -> dict
+```
+
+The component catalog, `{"components": [...]}`, in the format described for
+[`fluidnet catalog`](cli.md#catalog).
+
+### fluids_dir
+
+```python
+fn.fluids_dir() -> str
+```
+
+The fluid table directory used by default: `FLUIDNET_FLUIDS` if set, else the
+`fluids/` directory inside the package, else `./fluids`, else the `fluids/`
+directory of the source tree the package was built from. Raises
+`FileNotFoundError` if none holds `*.fntb` files. The tables of each directory
+are loaded once per process and cached.
+
+### Module attributes
+
+`fn.__version__` is the version of the Rust extension (`0.5.0`). `fn.__all__`
+lists the public names: `run`, `load`, `save`, `set_param`, `get_param`,
+`sweep`, `props`, `catalog`, `check`, `Results`, `fluids_dir`.
+
+## The Results class
+
+```python
+res = fn.run(...)
+```
+
+| Member | Type | Content |
+|---|---|---|
+| `res.time` | `numpy.ndarray` | Output times in s (one entry for a steady state). |
+| `res[name]` | `numpy.ndarray` | Channel data aligned with `res.time`. A missing name raises `KeyError` listing channels of the same component. |
+| `name in res` | `bool` | Whether a channel exists. |
+| `res.last(name)` | `float` | Last value of a channel. |
+| `res.find(pattern)` | `list[str]` | Channel names containing `pattern`. |
+| `res.names` | `list[str]` | All channel names, in output order. |
+| `res.units` | `dict[str, str]` | SI unit per channel. |
+| `res.error` | `str` or `None` | Message if the transient stopped early. |
+| `res.warnings` | `list[str]` | Compilation warnings. |
+| `res.stats` | `dict` | Transient statistics for a transient, steady statistics for a steady state ([fields](outputs.md#5-fields-of-the-results-object)). |
+| `res.elapsed` | `float` | Compile and solve time in s. |
+| `res.state` | `dict[str, float]` | Final state by state name, for warm starts. |
+| `res.meta` | `dict` | Full metadata: `name`, `mode`, `n_time`, `channels`, `warnings`, `stats`, `steady`, `error`, `components`, `n_states`, `elapsed_s`, `state_names`, `final_state`. |
+| `res.to_dict()` | `dict` | `{"time": ..., channel: array, ...}`. |
+| `res.to_dataframe(channels=None)` | `pandas.DataFrame` | Selected (default all) channels, indexed by `time [s]`. Requires pandas. |
+| `res.plot(*channels, ax=None)` | matplotlib `Axes` | Plots channels against time with units in the legend. Requires matplotlib. |
+
+The channel arrays are read-only views of one buffer; copy before modifying
+(`p = res["tca.Pc"].copy()`), otherwise numpy raises `ValueError: assignment
+destination is read-only`.
+
+```python
+tr = fn.run("examples/lox_feed_startup.yaml")
+print(tr)                   # <Results 'LOX feed startup' transient: t = 0..1.5 s, 98 channels, 127.0 ms>
+print(tr.time.shape)        # (751,)
+print(tr.find("manifold"))  # ['manifold.P', 'manifold.T', 'manifold.rho', 'manifold.h', 'manifold.x']
+tr["inj.mdot"]              # KeyError: "no channel 'inj.mdot'; channels of that component: [...]"
+```
+
+## Warm starts
+
+A steady-state solve from the model's initial conditions may need many
+iterations (pump flow guesses, shaft continuation, pseudo-transient
+continuation; see [modelling practice](modelling-practice.md#4-steady-state-convergence)).
+When a converged solution of a similar model exists, start from it:
+
+```python
+base = fn.run("examples/expander_cycle.yaml", mode="steady")     # 120 to 270 ms in the test runs
+m = fn.load("examples/expander_cycle.yaml")
+fn.set_param(m, "tbv", "opening", 0.3)
+r = fn.run(m, mode="steady", init=base)                          # 17 to 24 ms
+```
+
+`init` replaces the initial value of each state whose name appears in the
+mapping (`res.state`, built from `state_names` and `final_state`); states not
+named keep the model's initial value, and names that do not exist in the model
+are ignored without a message. A warm start therefore works across parameter
+changes that keep the topology, and partly across topology changes. It also
+applies to transients: the transient (or its initial steady solve with
+`start_from_steady`) starts from the given state.
+
+In v0.5.0 a warm-started steady solve of a model with free shafts still runs
+the shaft continuation, which first resets the shaft speeds to `N0` or the
+pump design speed (open item OI-022 in
+[open items](../01-project/open-items.md)); the remaining states keep the warm
+start, and the solve is still much faster than a cold start.
+
+To follow a solution branch through a parameter range, feed each result into
+the next run:
+
+```python
+res, out = None, []
+for opening in [0.06, 0.1, 0.2, 0.3, 0.45, 0.6]:
+    fn.set_param(m, "tbv", "opening", opening)
+    res = fn.run(m, mode="steady", init=res)
+    out.append((opening, res.last("tca.thrust")))
+```
+
+## Parallel runs
+
+`run` releases the GIL inside the solver, so threads run models in parallel
+without multiprocessing. `sweep` does this for one parameter; for other
+patterns use a thread pool directly:
+
+```python
+from concurrent.futures import ThreadPoolExecutor
+
+def case(dp):
+    m = fn.load("examples/expander_cycle.yaml")
+    fn.set_param(m, "fuel_pump", "design_dp", f"{dp} bar")
+    return fn.run(m, mode="steady")
+
+with ThreadPoolExecutor() as ex:
+    results = list(ex.map(case, [95, 100, 105, 110]))
+```
+
+Each run allocates its own solver state; the fluid tables are shared
+read-only.
+
+## Example: throttle map
+
+`examples/python/throttle_map.py` computes the throttle map of the closed
+expander: twelve steady states over the turbine bypass valve opening from
+0.0586 to 1.0 with `sweep`, plotting thrust, shaft speed and mixture ratio,
+and next to it the throttling transient of the example file. Run it from any
+directory (it writes `throttle_map.png` to the working directory):
+
+```sh
+python examples/python/throttle_map.py
+```
+
+It needs matplotlib. With v0.5.0 it completed in 5.9 s on the two-CPU test
+machine. The essential lines:
+
+```python
+model = fn.load(here / "expander_cycle.yaml")
+fn.set_param(model, "tbv", "opening", 0.0586)      # constant opening for steady states
+openings = np.linspace(0.0586, 1.0, 12)
+runs = fn.sweep(model, "tbv", "opening", list(openings), mode="steady")
+thrust = [r.last("tca.thrust") / 1e3 for r in runs]
+tr = fn.run(here / "expander_cycle.yaml")          # throttling transient from the design point
+tr.plot("tca.Pc", ax=ax[1])
+```
+
+The constant opening is set first because the example file holds a schedule
+for `tbv.opening`; a steady state would otherwise evaluate that schedule at
+`steady_time`. Further scripts that use the API are `tools/size_expander.py`
+(injector and turbine sizing with `scipy.optimize.least_squares`) and the RL10
+calibration and start scripts in `validation/rl10/` (see
+[RL10 validation](../04-verification/rl10.md)).
+
+## The _core module
+
+| Function | Returns |
+|---|---|
+| `run(model, mode, fluids_dir, steady_time=None, init=None)` | `(metadata JSON, bytes)`: the bytes hold time and then each channel as little-endian float64, `n_time` values each. `init` is a list of `(name, value)` pairs. |
+| `parse_model(text)` | The model as JSON text (used by `load`). |
+| `to_yaml(text)` | The model (YAML or JSON text) as YAML text (used by `save`). |
+| `check(model, fluids_dir)` | Structure summary as JSON text. |
+| `catalog_json()` | Catalog as JSON text. |
+| `props(fluid, p, fluids_dir, h=None, t=None)` | Properties as JSON text. |
+| `__version__` | Package version. |
+
+`model` arguments of `_core` are YAML or JSON text, not paths.
+
+## Troubleshooting
+
+| Symptom | Cause and remedy |
+|---|---|
+| `ModuleNotFoundError: No module named 'fluidnet._core'` | Extension not built in this environment; see [installation](getting-started.md#troubleshooting). |
+| `FileNotFoundError: fluid tables not found ...` | Package built without the tables; copy them and rebuild, or set `FLUIDNET_FLUIDS`. |
+| A string model is reported as a YAML parse error | The string was not recognised as a path (wrong extension or the file does not exist) and was parsed as model text. Pass a `pathlib.Path` with the correct extension. |
+| `RuntimeError: model error: ...` from `run` but `ValueError` from `check` | Same compile error; `run` reports compile errors as `RuntimeError`. |
+| Last values do not change in a sweep | The parameter has a schedule in the file and the steady state evaluates it at `steady_time`; set a constant first, as in `throttle_map.py`. Also check `res.warnings` for a misspelt parameter name. |
+| `ValueError: assignment destination is read-only` | Channel arrays are read-only; use `.copy()`. |
+| Results end before `t_end` | `res.error` holds the reason; see [modelling practice](modelling-practice.md#8-reading-warnings-and-errors). |
+
+## Revision history
+
+| Rev | Date | Change |
+|---|---|---|
+| A | 2026-11-02 | First release |

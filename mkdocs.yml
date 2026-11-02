@@ -1,0 +1,71 @@
+site_name: fluidnet
+site_description: Fluid system and rocket engine cycle simulation
+docs_dir: docs
+site_dir: site
+strict: true
+use_directory_urls: false
+
+theme:
+  name: material
+  palette:
+    scheme: default
+    primary: white
+    accent: grey
+  font: false
+  features:
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - search.highlight
+    - content.code.copy
+
+markdown_extensions:
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.superfences
+
+nav:
+  - Home: index.md
+  - Start Here: 00-start-here.md
+  - 01 Project:
+      - 01-project/index.md
+      - Platform development plan: 01-project/platform-plan.md
+      - Release history: 01-project/release-history.md
+      - Decision log: 01-project/decisions.md
+      - Open items: 01-project/open-items.md
+  - 02 Engineering:
+      - 02-engineering/index.md
+      - Software architecture: 02-engineering/architecture.md
+      - Network formulation: 02-engineering/network-formulation.md
+      - Solvers: 02-engineering/solvers.md
+      - Fluid properties: 02-engineering/fluid-properties.md
+      - Flow elements: 02-engineering/flow-elements.md
+      - Turbomachinery: 02-engineering/turbomachinery.md
+      - Heat transfer and walls: 02-engineering/heat-transfer.md
+      - Combustion chamber: 02-engineering/combustion.md
+  - 03 User Guide:
+      - 03-user-guide/index.md
+      - Installation and first run: 03-user-guide/getting-started.md
+      - Model file standard: 03-user-guide/model-files.md
+      - Component reference: 03-user-guide/component-reference.md
+      - Output channels and result files: 03-user-guide/outputs.md
+      - Command-line tool: 03-user-guide/cli.md
+      - Python API: 03-user-guide/python.md
+      - Web user interface: 03-user-guide/web-ui.md
+      - Modelling practice: 03-user-guide/modelling-practice.md
+      - Example models: 03-user-guide/examples.md
+  - 04 Verification and Validation:
+      - 04-verification/index.md
+      - Analytic cases: 04-verification/analytic-cases.md
+      - RL10A-3-3A validation: 04-verification/rl10.md
+      - RL10 map digitization: 04-verification/rl10-maps.md
+      - Validation matrix: 04-verification/validation-matrix.md
+  - 05 Development:
+      - 05-development/index.md
+      - Build, test and release: 05-development/build-and-release.md
+      - Conventions: 05-development/conventions.md
+      - Adding a component: 05-development/adding-a-component.md
+  - 06 References:
+      - 06-references/index.md
+      - Nomenclature: 06-references/nomenclature.md

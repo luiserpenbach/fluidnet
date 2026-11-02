@@ -9,7 +9,7 @@ description: >
   injector and a 4.94 in throat diameter chamber with area ratio 61. Steady
   operation at test point 1 of CR-190786.
 # Calibrated at TP1 by validation/rl10/rl10.py (all other values are published
-# data or stated assumptions, see docs/VALIDATION.md):
+# data or stated assumptions, see docs/04-verification/rl10.md):
 #   fuel_pump_1/2 design_dp (head factor on the published stage heads),
 #   jacket hot_htc_factor, jacket_up_chamber K, turbine area and design_eff,
 #   fuel_injector cd, lox_injector cd, tca cf_eff; valve setting mr_valve.

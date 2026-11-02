@@ -1,6 +1,6 @@
 //! Validation against analytic solutions and CoolProp references.
 //! Reference values in comments were computed with CoolProp 8.0 (see
-//! docs/VALIDATION.md); run with `cargo test --release`.
+//! docs/04-verification/analytic-cases.md); run with `cargo test --release`.
 
 use std::path::PathBuf;
 
@@ -267,7 +267,7 @@ fn rl10a33a_reproduces_test_point_1() {
 /// range measured on ground tests and flights (1.43 to 2.56 s, NASA CR-195478),
 /// and the start ends on the steady test point 1 solution. With the P&W
 /// turbine map and the TP1-calibrated turbine efficiency the model starts in
-/// 1.14 s, faster than the fastest measured start (docs/VALIDATION.md); the
+/// 1.14 s, faster than the fastest measured start (docs/04-verification/rl10.md); the
 /// bound checks that it stays within 30 % of the measured range.
 #[test]
 fn rl10a33a_start_accelerates_to_mainstage() {

@@ -22,7 +22,7 @@ examples/        example systems (YAML), also used as regression tests
 examples/python/ scripted studies (throttle map)
 tests_models/    validation cases
 tools/           table generators (CoolProp, Cantera), expander sizing script
-docs/            ARCHITECTURE.md, VALIDATION.md
+docs/            documentation (start at docs/index.md; `mkdocs serve` for a local site)
 ```
 
 ## Quick start
@@ -200,7 +200,7 @@ the mean error is 0.93 % (largest 2.2 %). `examples/rl10a33a_start.yaml`
 reaches 200 psia 1.14 s after the start signal, faster than the nine measured
 starts (1.43–2.56 s); the start is sensitive to the turbine efficiency, which
 the calibration sets 6 % above the P&W map. Details, the open points and the
-scripts in docs/VALIDATION.md and `validation/rl10/`.
+scripts in docs/04-verification/rl10.md and `validation/rl10/`.
 
 ## Performance
 
@@ -210,27 +210,20 @@ solves in 0.25 s, the 6 s throttling transient in 0.2 s, the 10 s start
 (two-phase priming, chugging and bootstrap) in about 6 s. A 150-state
 water-hammer case runs in 0.4 s; 600 states in about 3–6 s at rtol 1e-3–1e-4.
 
-## Status and roadmap
+## Documentation, status and roadmap
 
-Validated (see docs/VALIDATION.md): RL10A-3-3A ground-test data, adiabatic gas blowdown, Bernoulli and
+The documentation is in `docs/` (start at `docs/index.md`): design
+descriptions of every model, the user guide with the generated component
+reference, verification and validation (docs/04-verification/), and the
+platform development plan (docs/01-project/platform-plan.md) with the
+open items. Read it as plain Markdown or run `pip install mkdocs-material &&
+mkdocs serve` for a local site; `python tools/docs_to_notion.py` packages it
+for Notion's Markdown import.
+
+Validated (docs/04-verification/): RL10A-3-3A ground-test data, adiabatic gas blowdown, Bernoulli and
 cavitating flow, Darcy friction, Joukowsky surge and 4L/a period, HEM flashing,
 energy balance in heated lines, regulator droop, pump map, chamber pressure and
 thrust coefficient, shaft torque and jacket energy balances of the expander.
-
-Next:
-
-1. Low-speed pump maps in the head/torque vs atan(N/Q) form (TM-107318
-   figures 4.1.10–4.1.15) for starts and shutdowns, replacing the generic
-   curves below 20 % speed; RL10 start re-check.
-2. Design-mode steady state: solve for chosen parameters (orifice areas, valve
-   positions, pump speed) to meet targets (Pc, O/F, power balance) inside the
-   solver, replacing the external sizing loop.
-3. Nozzle extension radiation; two-phase boiling heat transfer for chill-down.
-4. Four-quadrant pump maps; dual-expander (two turbines, two shafts) and
-   gas-generator topologies.
-5. Tanks with liquid/ullage stratification and pressurant collapse.
-6. Tauri desktop build with the native core; controllers sensing speed and
-   flow (valves can already act on sensed pressures).
 
 Known limits: one fluid per connected circuit (no mixing of species except in
 the chamber); homogeneous equilibrium everywhere (no thermal non-equilibrium or

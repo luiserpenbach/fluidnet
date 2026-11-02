@@ -6,3 +6,5 @@ ui/artifact/
 *.csv
 python/fluidnet/fluids/
 __pycache__/
+site/
+fluidnet-docs-notion.zip
