@@ -38,6 +38,9 @@ missing.
 | Steady solver | `solver/steady.rs` | Start transient ends at the steady state, 0.3 % | – | – |
 | Transient integrator | `solver/transient.rs` | Joukowsky, blowdown | – | order-of-accuracy convergence study |
 
+Public data sets that can close the gaps are catalogued in
+[FNT-VAL-REG-002](data-engines.md) and [FNT-VAL-REG-003](data-fluid-systems.md).
+
 ## How to add an entry
 
 When a model is added or changed, add or update its row in the same change,

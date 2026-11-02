@@ -9,7 +9,8 @@
 > New here? Read [Start Here](00-start-here.md) first.
 
 **Current version:** 0.5.0 · **Owner:** Luis Erpenbach · **Status:** validated
-solver; platform development planned ([FNT-PLT-PLN-001](01-project/platform-plan.md))
+solver; platform development planned against literature reference problems
+up to staged combustion ([FNT-PLT-PLN-001](01-project/platform-plan.md))
 
 ## Sections
 

@@ -1,6 +1,6 @@
 # Decision log
 
-FNT-PLT-REG-002 · Rev A · Released · 2026-11-02 · Owner: Luis Erpenbach
+FNT-PLT-REG-002 · Rev B · Released · 2026-11-02 · Owner: Luis Erpenbach
 
 Architecture and process decisions with their reasons. A decision is changed
 by adding a new entry that supersedes the old one, never by editing it.
@@ -28,15 +28,18 @@ confirmed), **Open** (needs the owner's decision), **Superseded**.
 | D-016 | 2026-11 | One user-facing `fluidnet` command installed by the Python package; the Rust CLI stays for CI and debugging | One command for users, one install step | Proposed |
 | D-017 | 2026-11 | Desktop application with Tauri around the existing React interface and the native core | Offline, file-based, native speed; reuses the web interface | Proposed |
 | D-018 | 2026-11 | Documentation as Markdown in the repository, Hopper document conventions, exportable to Notion and buildable with MkDocs | Versioned with the code; reviewable; independent of the final documentation system | Accepted |
-| D-019 | – | Repository hosting | – | Open (FNT-PLT-PLN-001 §11) |
-| D-020 | – | Ownership and licence | – | Open |
-| D-021 | – | Long-term documentation location | – | Open |
-| D-022 | – | First reference project after WP3 | – | Open |
-| D-023 | – | Test-data access and format | – | Open |
+| D-019 | 2026-11-02 | Repository hosted on GitHub as a private repository under the owner's personal account | Owner's decision; CI with GitHub Actions on three platforms | Accepted |
+| D-020 | 2026-11-02 | fluidnet is the owner's private project; no licence is granted and the repository is not shared for now | Owner's decision; revisit before any external use | Accepted |
+| D-021 | 2026-11-02 | Documentation stays as Markdown in the repository (local site with MkDocs) until a documentation system is chosen | Owner's decision to keep it local for now; Notion export script available | Accepted (interim) |
+| D-022 | 2026-11-02 | No single target application. The platform is driven by reference problems of increasing system complexity taken from the literature; a lander propulsion system is one demonstration model, not the target | Owner's decision; the ambition is complexity beyond a pressure-fed vehicle system | Accepted |
+| D-023 | 2026-11-02 | Validation uses public literature data only (NASA, ESA, JAXA, AIAA and journal publications); no own test data is available | Owner's decision; data sets catalogued in FNT-VAL-REG-002 | Accepted |
 | D-024 | – | Desktop or hosted application first | – | Open |
+| D-025 | 2026-11-02 | Multi-component and reacting flow by composition states per node, ideal mixing of pure-fluid tables for non-reacting mixtures and equilibrium product tables in (P, h, mixture fraction) for reacting ones; pure-fluid circuits keep two states | Opens gas-generator and staged-combustion engines, pressurant over propellant and gas in liquid lines without slowing existing models | Proposed |
+| D-026 | 2026-11-02 | Progress is measured by a ladder of literature reference problems (FNT-PLT-PLN-001 §3); release 1.0 is accepted at Level 4 (SSME steady and start transient) | Follows from D-022 and D-023 | Proposed |
 
 ## Revision history
 
 | Rev | Date | Change |
 |---|---|---|
 | A | 2026-11-02 | First release; D-001 to D-011 recorded retrospectively |
+| B | 2026-11-02 | D-019 to D-023 decided by the owner; D-025, D-026 proposed |

@@ -1,144 +1,202 @@
 # Platform development plan
 
-FNT-PLT-PLN-001 · Rev A · Draft · 2026-11-02 · Owner: Luis Erpenbach
+FNT-PLT-PLN-001 · Rev B · Draft · 2026-11-02 · Owner: Luis Erpenbach
 
 ## 1. Purpose
 
-This plan describes how fluidnet develops from a validated solver (v0.5.0) into
-an engineering platform that a propulsion team uses for complex projects: whole
-vehicle propulsion systems, engine cycles with start and shutdown, test-bench
-predictions and the correlation of models with test data. It defines what
-"usable for complex projects" means, the requirements that follow, the target
-architecture, the work packages with exit criteria, the order in which they are
-done, and the decisions that are still open.
+This plan describes how fluidnet develops from a validated solver (v0.5.0)
+into an engineering platform for complex fluid systems and liquid rocket
+engines. It sets the target by system complexity rather than by one
+application: the platform is accepted when it reproduces the most complex
+public engine data available, a staged-combustion engine with four
+turbopumps, two preburners and closed-loop control, steady and through the
+start transient. It defines the reference problems that measure progress,
+the requirements that follow from them, the target architecture, the work
+packages with exit criteria, and the schedule.
 
-Status Draft: the plan is a proposal. Section 11 lists the decisions needed
-before it is released.
+Decisions that frame the plan ([decision log](decisions.md)):
+
+- D-019: private GitHub repository under the owner's account.
+- D-020: fluidnet is the owner's private project.
+- D-022: no single target application; reference problems of increasing
+  system complexity drive the development. Application models (a pressure-fed
+  lander propulsion system, a dual-expander engine) are demonstrations.
+- D-023: validation uses public literature data only. The data sets are
+  catalogued in [FNT-VAL-REG-002](../04-verification/data-engines.md)
+  (engines and turbomachinery) and
+  [FNT-VAL-REG-003](../04-verification/data-fluid-systems.md) (fluid systems
+  and thermal phenomena).
+
+Status Draft: open questions are in section 11.
 
 ## 2. Starting point (v0.5.0)
-
-What exists and works:
 
 | Area | State |
 |---|---|
 | Solver core | Rust; (P, h) node states; TR-BDF2 transient with colored finite-difference Jacobian and sparse LU; steady solver with flow guess, shaft continuation, Newton, pseudo-transient continuation and transient fallback; 5–50 ms for typical feed systems, 0.25 s for an expander steady state |
-| Physics | Liquid, gas, supercritical and two-phase (homogeneous equilibrium) flow; cavitation and flashing; pipes with inertia and friction; valves (scheduled and pressure-actuated), check valves, regulators; tanks; centrifugal pumps and impulse turbines with tabulated maps; shafts; walls with heat capacity, Bartz and Gnielinski heat transfer; equilibrium combustion chamber (H2, CH4, ethanol with O2) |
-| Fluids | Eight CoolProp-tabulated fluids: H2, O2, N2, He, CH4, H2O, N2O, ethanol |
-| Front ends | CLI, Python package (numpy results, threaded sweeps, warm starts), browser schematic editor (WebAssembly) |
+| Physics | Liquid, gas, supercritical and two-phase (homogeneous equilibrium) flow; cavitation and flashing; pipes with inertia and friction; scheduled and pressure-actuated valves, check valves, regulators; rigid tanks; centrifugal pumps and impulse turbines with tabulated maps; shafts; walls with heat capacity, Bartz and Gnielinski heat transfer; one equilibrium combustion chamber per circuit pair (H2, CH4, ethanol with O2) |
+| Fluids | Eight CoolProp-tabulated pure fluids |
+| Front ends | CLI, Python package, browser schematic editor |
 | Evidence | 30 automated tests; RL10A-3-3A steady state within 0.62 % mean / 2.05 % max at four test points ([FNT-VAL-ANA-002](../04-verification/rl10.md)) |
-| Documentation | This documentation set |
 
-What prevents use on a complex project today:
+What limits system complexity today:
 
-| Gap | Consequence |
+| Limit | Consequence |
 |---|---|
-| A model is one flat file | A vehicle model with an engine, two tank systems and a pressurant system becomes one file of several hundred components that nobody else can review; an engine model cannot be reused in a vehicle model and a test-bench model |
-| No named parameters or cases | Design points, variants and test configurations are copies of the model file; they drift apart |
-| No study definitions or run records | Sweeps, Monte Carlo and calibrations are ad-hoc scripts (the RL10 scripts are an example); results cannot be traced to the model version and inputs that produced them |
-| No test-data workflow | Comparing with a test means writing a script per test |
-| One fluid per circuit | No pressurant gas over a liquid propellant in the same tank; no self-pressurising N2O tank model with separate liquid and vapour temperatures |
-| No N2O-oxidiser combustion tables | The E2 engine (N2O/ethanol) cannot be modelled |
-| No controllers or sequences beyond pressure-actuated valves | No closed-loop throttle, no event-driven sequences |
-| No heat exchanger, no low-speed pump maps, no design mode | Dual-expander cycles, starts and shutdowns, and sizing inside the solver are not possible |
-| Builds only on Linux; no CI | Team members on Windows cannot install it; regressions are found by hand |
+| One pure fluid per connected circuit; combustion products exist only inside the chamber | No gas generators or preburners, no turbines driven by combustion gas, no pressurant over propellant, no gas in liquid lines. This excludes every gas-generator and staged-combustion engine. |
+| A model is one flat file without parameters | A four-turbopump engine is several hundred components with repeated blocks that cannot be reused or reviewed |
+| Turbomachinery: impulse turbines only, no hydraulic turbines, no low-speed or four-quadrant pump maps, no pump inlet two-phase degradation | SSME low-pressure pumps and turbopump starts cannot be represented |
+| No heat exchanger, no boiling heat transfer, no solid thermal networks | No RL10 derivatives with oxidiser heat exchangers, no chill-down |
+| No controllers, sequences or linear analysis | No closed-loop Pc/MR control, no stability analysis |
+| No study definitions, run records or literature-data workflow | Calibrations and comparisons are custom scripts; results are not traceable |
+| No CI, Linux-only wheels | Regressions are found by hand; no Windows install |
 
-## 3. What "usable for complex projects" means
+## 3. Reference problems
 
-The platform is accepted when it carries the following reference projects. Each
-is also the integration test of the work packages it depends on.
+Progress is measured by a ladder of reference problems. Each level needs the
+capabilities of the levels below it. Data sources are in FNT-VAL-REG-002 and
+FNT-VAL-REG-003; accuracy targets are first estimates and are revised when a
+problem is set up and the data scatter is known.
 
-| ID | Reference project | Scope of the model | Acceptance |
+### Level 1: fluid and thermal phenomena
+
+| ID | Problem | Data | Exercises | Target |
+|---|---|---|---|---|
+| R1.1 | Cryogenic fluid hammer with cavitation, LN2, 9.29 m × 19 mm line, valve closure 18 ms | DLR PS-LN2-Set1 (raw data, CC BY 4.0) | Pipe acoustics, column separation, cryogenic properties, wall elasticity | First pressure peak within 5 %, wave period within 2 %, cavity collapse timing within 10 % |
+| R1.2 | Water hammer and column separation, 37.23 m copper pipe | Bergant & Simpson 1999 | Same, classic benchmark with measured wave speed | As R1.1 |
+| R1.3 | Choked flow of subcooled LN2 and LOX through two specified nozzles | Hendricks, Simoneau & Barrows 1976, NASA TN D-8169 (tables) | Restriction flux, HEM against non-equilibrium (Dyer) | Mass flux within 5 % over the subcooling range with the non-equilibrium option |
+| R1.4 | Chill-down of a 61 m copper transfer line with LN2 and LH2; single-tube LN2 chill-down | Brennan et al. 1966, NBS 9264; Darr et al. 2016 | Wall heat capacity, boiling heat transfer, two-phase line flow | Chill-down time within 15 %; wall temperature histories within 10 K |
+| R1.5 | GH2 pressurisation and expulsion of LH2 tanks; He pressurant | Stochl et al. 1969, TN D-5387; Van Dresar & Stochl 1993, TM-106427; TN D-7019 | Two-fluid tank, interface and wall heat transfer | Pressurant mass within 10 % |
+| R1.6 | LH2 tank self-pressurisation at three heat fluxes | Hasan, Lin & Van Dresar 1991, TM-103804 | Homogeneous against stratified tank (documents the limit) | Lowest flux within 10 %; limit quantified at the highest |
+| R1.7 | Vessel blowdown, N2 and CO2 from 150 bar, wall temperatures | Imperial College (Haque et al., Richardson & Saville 1992) | Tank, wall heat transfer, choked gas and two-phase flow | Pressure within 5 %, gas temperature within 10 K |
+| R1.8 | Self-pressurising N2O tank drain; N2O injector flow | Zimmerman 2015 thesis; Palacz & Cieślik 2021 | Two-node non-equilibrium tank, Dyer flow | Tank pressure history within 10 % |
+| R1.9 | Priming of evacuated lines with water, ethanol and LN2 | DLR Lampoldshausen priming bench; VKI facility (Gouriet et al. 2016) | Non-condensable gas in liquid lines | Peak pressure within 15 % |
+
+### Level 2: components
+
+| ID | Problem | Data | Exercises |
 |---|---|---|---|
-| RP1 | H2 lander propulsion system (Hopper) | N2 COPV, regulators, ethanol and N2O tanks, feed lines, valves, E2 engine (N2O/ethanol, 2.2 kN, 25 bar); fill, pressurisation, start, 10 s hover throttle profile, shutdown, water hammer at valve actions | Built from subsystems by a team member other than the author; validated against cold-flow and hot-fire data of the test site; used in an analysis page (ANA) for pressurant budget and feed margins |
-| RP2 | E60-DEX dual-expander engine | Two turbopumps, two turbines, H2/O2 heat exchange, regenerative jacket, chamber; design point, 10:1 throttle map, start and shutdown | Design point found by design mode in under 1 s; cross-checked against `resa.cycle` (O/F flat over the throttle range) |
-| RP3 | Test bench and GSE | Run-tank fill and chill-down, blowdown, relief valve and burst disc cases, bench feed system | Bench predictions issued before a campaign and compared with the measured data after it, with one command each |
-| RP4 | RL10A-3-3A (regression) | Existing validation | Reproduced by a study file and a test-data file instead of a custom script; start transient within the measured range once low-speed maps are in |
+| R2.1 | Mark 48-F LH2 turbopump (three-stage pump, two-stage reaction turbine) and Mark 48-O LOX turbopump | NASA CR-159821, CR-159509 | Multi-stage pump maps, stall region, zero-NPSH idle, reaction-turbine maps |
+| R2.2 | J-2 hydrogen pump at zero tank NPSH, start transients | NASA TN D-6824 | Pump head degradation with inlet vapour fraction |
+| R2.3 | RL10 oxidiser heat exchanger, GN2/LN2 component tests | NASA CR-179487 | Two-stream heat exchanger with boiling |
+
+### Level 3: engines up to gas-generator complexity
+
+| ID | Problem | Data | Exercises | Target |
+|---|---|---|---|---|
+| R3.1 | RL10A-3-3A steady and start | done (FNT-VAL-ANA-002) | Regression | Keep 0.62 % mean; start inside the measured 1.43–2.56 s once low-speed maps are in |
+| R3.2 | RL10-IIB tank-head idle and pumped idle with the oxidiser heat exchanger; transition THI → PI | NASA CR-174914, Tables E-2/E-3 and transient plots | Heat exchanger, two-phase injection, low-pressure two-phase hydrogen in the jacket, mode transitions | Steady points within 3 %; transition timing within 10 % |
+| R3.3 | STME gas-generator booster module: eight chambers, four turbopumps, H2 spin start, start, cutoff and chamber-out cases | OEPSS Data Book Vol. 8, NASA CR-207443 (fully specified inputs; results from Rocketdyne's transient model) | Gas generator, combustion-gas turbine drive, spin start, manifolded multi-chamber network, subsystems | Code-to-code: within 5 % of the published transients |
+| R3.4 | Bootstrap start of an LH2 turbopump system heated by large solid masses | NASA TM X-1917 | Solid thermal networks, stall region, start without spin gas | Peak flow and speed within 10 % |
+
+### Level 4: staged combustion
+
+| ID | Problem | Data | Exercises | Target |
+|---|---|---|---|---|
+| R4.1 | SSME steady balance from 17 % to 109 % rated power level | Bradley 1997, NASA CR-205360 (tables at 17–40 % RPL, pump operating points); Santi 1994 (TTB-50 at 100 %); Santi 1993, CR-195253 (power balance model at 109 %) | Two fuel-rich preburners, four shafts, two pumps on one shaft, hydraulic turbine, reaction turbines, Pc/MR control | Calibrated at 100–109 %, predicts 17–40 % RPL within the scatter of Rocketdyne's own predictions in CR-205360 |
+| R4.2 | SSME start transient to 80 % RPL with nominal and reduced LOX inlet pressure | Bradley 1997, NASA CR-205359 (measured traces against Rocketdyne's transient model) | Preburner and chamber priming and ignition, closed-loop valve control, tank-head start | Prime times within 0.1 s; MCC Pc, HPOTP discharge pressure and HPFTP speed within 10 % after 2.4 s |
+
+Level 4 is the acceptance level of release 1.0. LE-7/LE-7A start-transient
+papers (JAXA) are the second staged-combustion case once the full texts are
+obtained.
+
+### Level 5: demonstration models (no test data)
+
+Models that show complexity beyond the public data, built from published
+design data and the validated components: a stage with autogenous
+pressurisation, multi-engine feed and start/shutdown; a full-flow
+staged-combustion engine at the published IPD design point; a dual-expander
+hydrolox engine; a pressure-fed lander propulsion system with N2O
+self-pressurisation. They are verified (balances, sensitivities, code
+behaviour) but not validated, and are labelled so.
 
 ## 4. Requirements
 
-Numbered so that work packages and tests can refer to them.
-
 ### Modelling
 
-- **PLT-R-01** A model can contain subsystems: other model files with declared
-  external ports and parameters, nested to any depth.
-- **PLT-R-02** Models have named parameters with units; component parameters
-  can reference them; a case file overrides parameters without copying the
-  model.
-- **PLT-R-03** Component templates from a parts library (valves with Cv,
-  line sizes, regulators) can be referenced and overridden.
-- **PLT-R-04** Component ids can follow the Hopper P&ID tag standard
-  (HOPPER-PID-STD-001); the tool exports a tag list of a model.
-- **PLT-R-05** Invalid model files are rejected with an error that names the
-  file, the component, the key and the allowed values (unknown keys included).
+- **PLT-R-01** Subsystems: model files with declared external ports and
+  parameters used as components, nested to any depth (a turbopump subsystem
+  used four times in R3.3).
+- **PLT-R-02** Named parameters with units; parameter and case files.
+- **PLT-R-03** Component templates from library files.
+- **PLT-R-04** Optional tag and description fields on components; tag-list
+  export.
+- **PLT-R-05** Invalid model files rejected with file, component, key and
+  nearest valid key named.
 
 ### Physics
 
-- **PLT-R-10** Tanks with a liquid propellant and an ullage gas of a
-  different species (pressurant), with separate liquid, ullage and wall
-  temperatures.
-- **PLT-R-11** Self-pressurising tanks (N2O) with liquid and vapour out of
-  thermal equilibrium.
+- **PLT-R-10** Multi-component flow: each node carries a composition (mass
+  fractions of a small set of declared components); mixture properties of
+  non-reacting components by ideal mixing of real-fluid tables; transport of
+  composition through branches.
+- **PLT-R-11** Reacting flow: combustion devices with gas outlets (gas
+  generators, preburners, main chambers feeding downstream lines);
+  equilibrium product properties tabulated in pressure, enthalpy and mixture
+  fraction, including fuel-rich and oxidiser-rich regimes; turbines and lines
+  carrying combustion gas.
 - **PLT-R-12** Combustion tables for any propellant pair Cantera supports,
-  generated from a configuration file; first N2O/ethanol, GOX/GH2,
-  LOX/ethanol.
-- **PLT-R-13** Two-phase injector and orifice flow with thermal
-  non-equilibrium (Dyer model) as an option to the homogeneous model.
-- **PLT-R-14** Pipe wall elasticity in the wave speed of liquid lines.
-- **PLT-R-15** Sensors, PID controllers and event-driven sequences acting on
-  valve openings, regulator set points and speeds.
-- **PLT-R-16** Relief valves, burst discs and solenoid valves with opening
-  and closing times.
-- **PLT-R-17** Two-stream heat exchanger with wall.
-- **PLT-R-18** Low-speed and four-quadrant pump maps.
-- **PLT-R-19** Design mode: steady state with free parameters solved for
-  targets inside the solver.
-- **PLT-R-20** Boiling heat transfer for chill-down; radiation-cooled nozzle
-  extensions.
+  from a configuration file, each compared with CEA.
+- **PLT-R-13** Non-equilibrium two-phase flow through restrictions (Dyer).
+- **PLT-R-14** Pipe wall elasticity in the wave speed.
+- **PLT-R-15** Two-fluid tanks: liquid, ullage (pressurant and vapour) and
+  wall nodes with interface and wall heat and mass transfer; two-node
+  non-equilibrium self-pressurising tanks.
+- **PLT-R-16** Non-condensable gas in liquid lines (priming).
+- **PLT-R-17** Boiling heat transfer (film, transition, nucleate) for
+  chill-down; solid thermal networks (lumped masses with conduction and
+  convection links); radiation-cooled nozzle extensions.
+- **PLT-R-18** Two-stream heat exchangers with wall elements.
+- **PLT-R-19** Turbomachinery: reaction turbines with tabulated maps in
+  pressure ratio and velocity ratio; hydraulic (liquid-driven) turbines;
+  low-speed and four-quadrant pump maps; pump head degradation with inlet
+  vapour fraction; multi-stage pumps.
+- **PLT-R-20** Injector dome and chamber priming and ignition; combustion
+  time lag for low-frequency combustion dynamics.
+- **PLT-R-21** Sensors, PID controllers, engine controllers (Pc and MR loops
+  acting on valves), event-driven sequences, relief valves, burst discs,
+  solenoid valves.
+- **PLT-R-22** Design mode: steady state with free parameters solved for
+  targets.
+- **PLT-R-23** Linearisation at an operating point: state-space matrices
+  from the Jacobian, eigenvalues and frequency responses, for stability and
+  control analysis.
 
 ### Studies, data and traceability
 
-- **PLT-R-30** Studies are files: single run, sweep, Monte Carlo, operating
-  envelope, sensitivity, calibration.
-- **PLT-R-31** Every run writes a run record: software version, project
-  commit, SHA256 of the fully resolved model and of the property tables,
-  command, inputs, results and a report. Two runs with the same hashes give the
-  same results.
-- **PLT-R-32** Derived outputs and limit checks (margins, NPSH, pressure
-  limits) are defined in the study and reported pass/fail.
-- **PLT-R-33** Test data files are imported through a channel map (sensor tag,
-  model channel, unit, offset, time shift); runs can be driven by measured
-  inputs and compared with measured outputs.
+- **PLT-R-30** Studies as files: single, sweep, Monte Carlo, envelope,
+  sensitivity, calibration.
+- **PLT-R-31** Run records with software version, project commit, SHA256 of
+  the resolved model and property tables, command, results and report.
+- **PLT-R-32** Derived outputs and limit checks in studies.
+- **PLT-R-33** Literature data library: each data set stored with its source
+  (report, table or figure), digitisation method and uncertainty, units and
+  licence; comparison reports with error metrics against it.
 
 ### Quality
 
-- **PLT-R-40** Every physical model has a verification case; the validation
-  matrix ([FNT-VAL-REG-001](../04-verification/validation-matrix.md)) is
-  complete for every model used in a released analysis.
-- **PLT-R-41** Continuous integration builds and tests on Windows, macOS and
-  Linux on every change and checks that results of the reference models did
-  not change beyond stated tolerances.
+- **PLT-R-40** Every physical model has a verification case; every model
+  used at a reference problem is in the validation matrix.
+- **PLT-R-41** CI on Windows, macOS and Linux with reference-result
+  baselines.
 - **PLT-R-42** Analyses state a credibility level (section 8).
 
-### Use and deployment
+### Use, scale and deployment
 
-- **PLT-R-50** Installation on Windows, macOS and Linux with one command
-  (`pip install fluidnet`) or one installer for the desktop application.
-- **PLT-R-51** A desktop application opens a project folder, edits models
-  graphically including subsystems, runs studies and compares runs with each
-  other and with test data.
-- **PLT-R-52** Python is the scripting interface; everything the application
-  does can be done from Python and from the command line.
-- **PLT-R-53** A model can be stepped from external code (vehicle or GNC
-  simulation) with inputs and outputs exchanged at each step.
+- **PLT-R-50** One-command installation on Windows, macOS and Linux.
+- **PLT-R-51** Desktop application with hierarchical schematics, study runner
+  and run comparison.
+- **PLT-R-52** Python as the scripting interface for everything.
+- **PLT-R-53** Stepping API for co-simulation; FMI export as an option.
+- **PLT-R-54** Scale: a 5,000-state model (SSME with discretised lines and
+  walls) solves steady in under 5 s and a 5 s start transient in under 2 min
+  on a laptop.
 
 ### Maintainability
 
-- **PLT-R-60** All project data are plain files in a Git repository: YAML
-  models, parameters and studies, CSV/Parquet data, Markdown documentation. No
-  database is required.
-- **PLT-R-61** Documentation is updated in the same change as the code it
-  describes ([FNT-DEV-STD-001](../05-development/conventions.md)).
+- **PLT-R-60** All data are plain files in Git (YAML, CSV/Parquet,
+  Markdown); no database.
+- **PLT-R-61** Documentation updated in the same change as the code.
 
 ## 5. Target architecture
 
@@ -149,353 +207,299 @@ Numbered so that work packages and tests can refer to them.
 │ Front ends   desktop app (Tauri)   web viewer   CLI   Python notebooks   │
 ├──────────────────────────────────────────────────────────────────────────┤
 │ Project layer (Python, Pydantic v2)                                      │
-│   project, parameters and cases · studies · run store and run records    │
-│   reports (Plotly) · test-data import and comparison · calibration       │
+│   project, parameters, cases · studies · run store and run records       │
+│   reports (Plotly) · literature data library and digitiser · calibration │
 ├──────────────────────────────────────────────────────────────────────────┤
 │ Bindings     PyO3 module · WebAssembly C ABI · stepping API (and FMU)    │
 ├──────────────────────────────────────────────────────────────────────────┤
 │ Core (Rust)  model resolution (subsystems, parameters, library)          │
-│              compile · components · solvers · properties · combustion    │
+│              compile · components · solvers · linearisation              │
+│              properties: pure fluids, mixtures, combustion products      │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-Rules for the split:
+- Everything that changes equations or the resolved model is in the core, so
+  all front ends give the same answer.
+- Runs, files, data and reports are in the Python project layer.
+- The Python package installs the user-facing `fluidnet` command (D-016);
+  the Rust CLI stays for CI and debugging.
 
-- Anything that changes the equations or the resolved model belongs in the
-  core, so that the CLI, Python, the desktop application and the web viewer
-  give the same answer. Subsystems, parameters and library templates are
-  therefore resolved in Rust, before compilation.
-- Anything that organises runs, files and reports belongs in the Python
-  project layer. It is where most users work, it is easy to change, and it
-  uses the team's existing stack (Pydantic v2, Plotly, numpy, pandas, scipy).
-- The Rust CLI remains the minimal solver entry point for CI and debugging.
-  The Python package installs the user-facing `fluidnet` command, which covers
-  both solver commands and project commands (decision D-016 below).
+### Multi-component and reacting flow in the core
+
+This is the largest architectural change and the one that opens gas-generator
+and staged-combustion engines.
+
+- A model declares its components, for example `fuel: H2`, `ox: O2`,
+  `pressurant: He`, and `products` of a propellant pair. Each volume node gets
+  composition states (mass fractions; one per component beyond the first), in
+  addition to P and h. Pure-fluid circuits keep their current two states, so
+  existing models and their performance are unchanged.
+- Non-reacting mixtures (pressurant with propellant vapour, gas in a liquid
+  line) use ideal mixing of the pure-fluid tables: partial pressures for gas,
+  volume-additive liquid, with phase equilibrium of the condensable component
+  only.
+- Reacting mixtures use a three-dimensional equilibrium table in pressure,
+  enthalpy and mixture fraction (fuel-rich to oxidiser-rich) generated with
+  Cantera, giving T, ρ, its derivatives, transport properties and the
+  isentropic exponent. Gas-generator and preburner gases at low mixture ratio
+  are inside the table; the limits of equilibrium at very low temperature are
+  documented and an empirical option is left for kerosene gas generators.
+- Combustion devices become volume nodes with injection ports and outlet
+  ports; the current chamber with its nozzle is one case.
+- The flow laws keep their form; the properties they call depend on
+  composition. The Jacobian coloring and sparsity extend unchanged, since
+  composition states are read and written by the same terms as h.
 
 ### Project folder
 
 ```
-h2-propulsion/                      Git repository of one project
-  fluidnet-project.yaml             name, fluidnet version, default fluids, folders
+ssme/                                Git repository of one project
+  fluidnet-project.yaml              name, fluidnet version, components, folders
   models/
-    h2_propulsion.yaml              top-level vehicle model
-    e2_engine.yaml                  subsystem with ports fuel_in, ox_in
-    pressurant.yaml                 subsystem
-  params/
-    baseline.yaml                   named parameters of the design point
-    cases/hover_hot.yaml            overrides for one case
-  library/
-    valves.yaml                     component templates (Cv, cd, actuation times)
-    lines.yaml
-  studies/
-    hover_profile.yaml              transient with throttle sequence and checks
-    pressurant_mc.yaml              Monte Carlo on regulator band and temperatures
-  data/
-    tests/2027-03-14_CF-012.parquet test data with metadata (campaign, run id)
-    channel_maps/atb.yaml           sensor tag -> model channel
-  runs/                             run records (Git-ignored or Git LFS)
-    2026-11-20T1432Z_hover_profile_3f9a12c4/
-      manifest.json                 versions, hashes, command, timings, checks
-      model.resolved.yaml           the flattened model that was solved
-      results.parquet               all channels
-      summary.json                  final values, derived outputs, pass/fail
-      report.html                   Plotly report
-  docs/                             analysis pages (ANA) that cite run ids
+    ssme.yaml                        top-level engine
+    turbopump_hpftp.yaml             subsystem
+    preburner.yaml                   subsystem used twice
+  params/   baseline.yaml, cases/rpl_040.yaml
+  library/  valves.yaml, lines.yaml, maps/hpftp.yaml
+  studies/  steady_rpl_sweep.yaml, start_902-641.yaml, calibrate_100rpl.yaml
+  data/     literature/CR-205360_table_fig9.yaml (values, source, uncertainty)
+  runs/     <UTC time>_<study>_<hash8>/ manifest.json, model.resolved.yaml,
+            results.parquet, summary.json, report.html
 ```
 
 ### File formats
 
-Subsystem (in the parent model):
+Subsystem use and definition:
 
 ```yaml
 components:
-  - {id: E2, type: subsystem, model: e2_engine.yaml,
-     params: {Pc_design: 25 bar, throat_diameter: 27.6 mm}}
+  - {id: FPB, type: subsystem, model: preburner.yaml, params: {mr_design: 0.9}}
 connections:
-  - [FU-V-110.out, E2.fuel_in]
-  - [OX-V-210.out, E2.ox_in]
+  - [FPOV.out, FPB.ox_in]
+  - [FPB.gas_out, HPFTP.turbine_in]
 ```
-
-Subsystem file (declares its interface):
 
 ```yaml
-name: E2 engine
-ports: {fuel_in: fuel_manifold, ox_in: ox_manifold}   # external name -> internal port
-parameters:
-  Pc_design: 25 bar
-  throat_diameter: 27.6 mm
+name: preburner
+ports: {fuel_in: fuel_dome, ox_in: ox_dome, gas_out: chamber}
+parameters: {mr_design: 0.9, volume: 4 L}
 components:
-  - {id: fuel_manifold, type: junction, volume: 15 mL}
-  - {id: tca, type: combustion_chamber, throat_diameter: =throat_diameter, ...}
+  - {id: chamber, type: combustor, volume: =volume, products: H2-O2}
+  ...
 ```
 
-Inside the resolved model, internal names are prefixed with the subsystem id
-(`E2.tca.Pc`), so output channels stay unique and readable.
-
-Parameters are referenced with `=name` and may use arithmetic
-(`=0.5*throat_diameter`); all evaluation is in SI after unit conversion.
+Resolved names are prefixed with the subsystem id (`FPB.chamber.T`).
+Parameters are referenced with `=name` and may use arithmetic in SI.
 
 Study:
 
 ```yaml
-study: monte_carlo
-model: models/h2_propulsion.yaml
+study: calibration
+model: models/ssme.yaml
 params: [params/baseline.yaml]
-mode: transient
-samples: 500
-seed: 1
-vary:
-  REG-101.set_pressure: {dist: normal, mean: 30 bar, std: 0.5 bar}
-  N2O_tank.T0:          {dist: uniform, low: 278 K, high: 293 K}
-outputs:
-  ox_injector_dp_min: min(E2.ox_injector.dp)
-  pressurant_left:     last(PR-T-001.m)
-checks:
-  - ox_injector_dp_min > 0.2 * E2.tca.Pc
+mode: steady
+free:
+  HPFTP.turbine.eff_scale: {init: 1.0, bounds: [0.8, 1.2]}
+  FPB.injector.cd:         {init: 0.8, bounds: [0.5, 1.1]}
+targets:
+  data: data/literature/santi1994_ttb50.yaml
+  match: [HPFTP.speed, HPOTP.speed, MCC.Pc, FPB.T, OPB.T]
 ```
 
-Run record manifest: fluidnet version and commit, project commit and dirty
-flag, SHA256 of `model.resolved.yaml`, of each property table and of the
-combustion tables, study file hash, command line, start time, wall time,
-solver statistics, check results. The hash of the resolved model is the
-identity of a result; an analysis page cites the run directory name.
+Literature data file:
+
+```yaml
+source: {report: NASA CR-205360, item: Fig. 9 (table), page: 7}
+method: transcribed            # or: digitised, with the digitiser record
+uncertainty: {type: reading, value: 0.5 %}
+licence: NTRS public
+units: {HPFTP_speed: rpm, MCC_Pc: psia}
+points:
+  - {id: 40RPL, HPFTP_speed: ..., MCC_Pc: ...}
+```
 
 ## 6. Work packages
 
-Effort is in focused working weeks (one person, with AI-assisted
-development). Dependencies are given by work package number.
+Effort is in focused working weeks, one person with AI-assisted development.
 
-### WP1 Foundation: repository, CI, packaging (2 weeks)
+### WP1 Foundation (2 weeks)
 
-- Private Git repository (GitHub), branch protection, issue tracker.
-- CI (GitHub Actions): `cargo fmt`, `clippy`, `cargo test --release` on
-  Linux, Windows and macOS; Python wheels with maturin for win_amd64,
-  macosx_arm64 and manylinux x86_64; WebAssembly and UI build; `mkdocs build
-  --strict`; check that the generated component reference is up to date.
-- Reference-result baselines: steady and transient results of all examples
-  stored as compressed files; CI fails when a channel moves beyond its
-  tolerance; an explicit command updates the baselines with a reason.
-- Model file version key (`fluidnet: 0.6`) and a migration function per
-  format change.
-- Strict model validation: unknown keys (today a warning), wrong units and
-  wrong types are errors with the file, component, key and nearest valid key
-  named; a JSON Schema generated from
-  the catalog for editor completion and checking in VS Code.
-- Exit: CI green on three platforms; `pip install` of a released wheel works
-  on Windows; the RL10 regression runs in CI.
+- Private GitHub repository; CI (GitHub Actions): fmt, clippy, tests on
+  Linux, Windows and macOS; wheels for win_amd64, macosx_arm64 and
+  manylinux; WebAssembly and UI build; `mkdocs build --strict`; component
+  reference up to date.
+- Reference-result baselines for all examples; CI fails on unexplained
+  changes.
+- Model format version key and migrations; strict validation (open items
+  OI-017, OI-024, OI-025); CLI exit codes and argument errors (OI-026).
+- Fix OI-019 (ethanol enthalpy reference), OI-020, OI-021, OI-030.
+- Exit: CI green on three platforms; Windows wheel installs; RL10 regression
+  in CI.
 
 ### WP2 Model composition (3 weeks, after WP1)
 
-- `subsystem` component, `ports` and `parameters` sections, resolution and
-  flattening in the core (PLT-R-01).
-- Named parameters with `=name` references and arithmetic; parameter files
-  and case files (PLT-R-02).
-- Component templates from library files with `use:` and overrides (PLT-R-03).
-- Optional `tag` and `description` fields on every component; tag-list export
-  as CSV (PLT-R-04).
-- UI: subsystems shown as one block with their ports; open to edit.
-- Exit: E2 engine as a subsystem inside a vehicle model and inside a
-  test-bench model, both solving; a sweep over a named parameter.
+- Subsystems, parameters, cases, library templates, tags (PLT-R-01 to 05);
+  hierarchical display in the UI.
+- Exit: the RL10A-3-3A rebuilt from a turbopump subsystem and an injector
+  subsystem gives identical results.
 
-### WP3 Studies, run records and reports (4 weeks, after WP2)
+### WP3 Studies, run records and calibration (4 weeks, after WP2)
 
-- Python project layer with Pydantic v2 models for project, parameter, case
-  and study files; one `fluidnet` command: `fluidnet run`, `fluidnet study
-  run|status|report`, `fluidnet runs list|compare`.
-- Study types: single, sweep (list and full factorial), Monte Carlo (random
-  and Latin hypercube, fixed seed), envelope (2-D grid with failure map),
-  sensitivity (normalised derivatives from warm-started steady solves),
-  calibration (least squares on factors with bounds against targets; the RL10
-  calibration is the first user).
-- Run store with manifests and SHA256 identity (PLT-R-31); reuse of results
-  when the hash matches; Parquet results.
-- Derived outputs and checks (PLT-R-32) with a small expression language
-  (`min`, `max`, `last`, `mean`, `at(t)`, arithmetic on channels).
-- Plotly HTML reports: per run, per study (sweep plots, Monte Carlo
-  histograms and percentiles, envelope maps), and run-to-run comparison.
-- A Markdown run-record block for analysis pages.
-- Parallel execution on the local machine (threads; the solver releases the
-  GIL).
-- Exit: RP4: the RL10 validation runs as `fluidnet study run
-  studies/rl10_validation.yaml` and reproduces `results.json`.
+- Python project layer with Pydantic v2; `fluidnet` command with run, study,
+  runs subcommands.
+- Study types (PLT-R-30), derived outputs and checks (PLT-R-32), run store
+  with SHA256 identity (PLT-R-31), Parquet results, Plotly reports, parallel
+  execution, warm-started sweeps (OI-022).
+- Exit: the RL10 validation runs from one study file and reproduces
+  `results.json`.
 
-### WP4 Test-data correlation (2 weeks, after WP3)
+### WP4 Literature data library (2 weeks, after WP3; then continuous)
 
-- Importers for CSV, Parquet and HDF5 DAQ logs (the LabJack/ZeroMQ DAQ
-  format first) with metadata: campaign, run id, date, configuration.
-- Channel maps (PLT-R-33); unit conversion; time alignment on an event
-  channel.
-- Replay: measured signals as model inputs (valve commands, tank pressures).
-- Comparison report: overlays, error metrics per window, pass/fail against
-  stated tolerances.
-- Exit: one cold-flow test of the Hopper test site replayed and compared with
-  one command.
+- Data file format with provenance, uncertainty and licence (PLT-R-33).
+- Digitiser generalised from the RL10 map work (`validation/rl10/maps/`):
+  deskew, grid calibration, marker and curve extraction, check plots, with
+  the reading uncertainty recorded.
+- Comparison reports: overlays, error metrics per channel and window,
+  pass/fail against the reference-problem targets.
+- Load the Level 1 data sets first (R1.1–R1.3, R1.5 tables).
+- Exit: R1.1 and R1.3 data in the library, compared with the current model.
 
-### WP5 Physics for the H2 lander (8 weeks, parallel to WP3–WP4 after WP2)
+### WP5 Multi-component and reacting flow (8 weeks, after WP2)
 
-- Two-fluid tank (PLT-R-10): liquid node of the propellant, ullage node with
-  pressurant and propellant vapour as an ideal mixture of two tabulated
-  fluids, wall nodes; heat and mass transfer at the interface and the walls;
-  outflow from the liquid, gas ingestion flagged when the liquid is depleted.
-- Self-pressurising N2O tank (PLT-R-11): two-node model (liquid and vapour
-  at separate temperatures) with a wall node, the model recommended in
-  E2-PRS-DOC-01; validated against published N2O blowdown data (Zimmerman et
-  al. 2013 and the data sets reviewed there) before use.
-- Correct the ethanol reference enthalpy (open item OI-019: the liquid
-  vaporisation enthalpy is missing, T_c about 60 K high at O/F 1.5).
-- Combustion table generator for arbitrary propellant pairs from a YAML
-  configuration; tables for N2O/ethanol, GOX/GH2 and LOX/ethanol, each
-  compared with CEA over the full O/F range (PLT-R-12).
-- Dyer non-equilibrium option for two-phase restrictions (PLT-R-13).
-- Wave speed with wall elasticity (Korteweg) for pipes with a wall material
-  and thickness (PLT-R-14).
-- Control components (PLT-R-15): `sensor` (any channel, first-order lag,
-  noise, sample rate), `pid` (anti-windup, output limits, acting on valve
-  opening, regulator set point or speed), `sequence` (state machine:
-  conditions on channels and times trigger set-point changes).
-- `relief_valve`, `burst_disc`, `solenoid_valve` (PLT-R-16).
-- Exit: RP1 at model level: full H2 propulsion model with a hover throttle
-  profile, verified component by component, then compared with the first
-  cold-flow campaign.
+- Composition states, mixture properties, combustion product tables in
+  (P, h, mixture fraction), combustor nodes with outlets, combustion-gas
+  turbines (PLT-R-10, 11, 12, 16).
+- Generalised combustion table generator; tables for H2/O2 (fuel-rich and
+  oxidiser-rich), CH4/O2, ethanol/O2 (OI-019 corrected), N2O/ethanol,
+  RP-1/O2; each compared with CEA.
+- Exit: R3.3 (STME gas-generator module) runs start and cutoff; a
+  gas-in-line priming case (R1.9) runs.
 
-### WP6 Physics for expander cycles (6 weeks, after WP2)
+### WP6 Fluid and thermal phenomena (8 weeks, parallel to WP5 after WP2)
 
-- Two-stream counter- and co-flow heat exchanger with wall elements
-  (PLT-R-17).
-- Low-speed pump maps in the head/torque against atan(N/Q) form, extended to
-  four quadrants (Suter representation); RL10 start rechecked with
-  TM-107318 figures 4.1.10–4.1.15 (PLT-R-18).
-- Design mode (PLT-R-19): `targets` (channel = value) and `free` (parameter
-  with bounds) in a steady run, solved in the same Newton system.
-- Nucleate and film boiling correlations for chill-down; radiation from
-  nozzle extensions (PLT-R-20).
-- Exit: RP2: E60-DEX design point by design mode, throttle map, start
-  transient; RL10 start within the measured 1.43–2.56 s or the remaining
-  difference explained.
+- Dyer non-equilibrium flow (PLT-R-13); wall elasticity (PLT-R-14);
+  two-fluid and two-node tanks (PLT-R-15, uses WP5 mixtures); boiling heat
+  transfer, solid thermal networks, tabulated material properties, nozzle
+  radiation (PLT-R-17).
+- Exit: Level 1 problems R1.1–R1.8 within their targets or the remaining
+  difference explained in an analysis page each.
 
-### WP7 Desktop application (6 weeks, after WP3)
+### WP7 Turbomachinery and engine components (6 weeks, after WP5)
 
-- Tauri application with the native core; the existing React interface and
-  its light theme.
-- Project explorer (models, parameters, studies, data, runs), hierarchical
-  schematic with subsystems, YAML view side by side with the schematic.
-- Study runner with progress and cancel; run browser reading the run store;
-  overlays of runs and test data.
-- Windows installer built in CI; the web build kept for read-only viewing of
-  models and runs (hosted with Azure Static Web Apps or Container Apps when
-  needed).
-- Exit: a team member builds a 30-component model from the library, runs a
-  sweep and compares two runs without editing YAML by hand.
+- Heat exchanger (PLT-R-18); reaction and hydraulic turbines, low-speed and
+  four-quadrant maps, inlet two-phase degradation, multi-stage pumps
+  (PLT-R-19); injector priming, ignition and combustion time lag (PLT-R-20);
+  design mode (PLT-R-22).
+- Exit: Level 2 problems; R3.2 (RL10-IIB); R3.1 start with low-speed maps;
+  R3.3 within the code-to-code target.
 
-### WP8 Interfaces (2 weeks, after WP2)
+### WP8 Control and linear analysis (3 weeks, after WP5)
 
-- Stepping API (PLT-R-53): `Session(model).step(dt, inputs) -> outputs`
-  in Python and Rust, for vehicle and GNC simulations; real-time factor
-  measured for the H2 model.
-- FMI 2.0/3.0 co-simulation export as a later option if a tool needs it.
-- Import of CEA output for comparison; tag-list and parameter export for the
-  Hopper Notion registers.
-- Exit: the lander GNC simulation runs with the propulsion model in the loop.
+- Sensors, PID, engine controllers, sequences, protection devices
+  (PLT-R-21); linearisation and eigenvalue analysis (PLT-R-23); stepping API
+  (PLT-R-53).
+- Exit: Pc/MR loop closed on a gas-generator model; eigenvalues of the RL10
+  operating point compared with a time-domain step response.
 
-### WP9 Documentation and onboarding (continuous, about 10 % of effort)
+### WP9 Staged combustion (8 weeks, after WP6–WP8)
 
-- Every work package updates its design description, the user guide and the
-  validation matrix in the same change.
-- Three tutorials: pressure-fed feed system, tank pressurisation, expander
-  cycle; each with model files and expected results checked in CI.
-- Model review checklist (section 8).
-- Docs moved to the team's documentation system once it is decided
-  (Notion import script exists; MkDocs site possible).
+- SSME model from public descriptions: two preburners, four turbopumps,
+  hydraulic turbine, nozzle and chamber cooling circuits, controller.
+- Calibration at 100–109 % RPL; prediction at 17–40 % RPL (R4.1); start
+  transient with measured valve positions (R4.2). An analysis page for each.
+- Exit: Level 4 targets met or the remaining differences explained.
 
-### Performance (within WP1, WP3, WP6)
+### WP10 Scale and performance (3 weeks, spread over WP5–WP9)
 
-Targets for a 2,000-state model (full RP1 vehicle with discretised lines):
-steady state under 2 s, 10 s transient under 60 s. Measures as needed:
-parallel colored Jacobian evaluation, property-lookup caching per node,
-reuse of the symbolic factorisation across runs of a study.
+- Profiling on the SSME model; parallel colored Jacobian evaluation;
+  property caching; reuse of symbolic factorisation across study runs.
+- Exit: PLT-R-54.
+
+### WP11 Desktop application (6 weeks, from WP3 on, parallel)
+
+- Tauri application with the native core and the current light interface:
+  project explorer, hierarchical schematic, YAML side by side, study runner,
+  run browser and comparison with literature data.
+- Exit: R3.3 built and run from the application without editing YAML.
+
+### WP12 Documentation (continuous, about 10 %)
+
+- Design description, user guide and validation matrix updated in each
+  change; one analysis page per reference problem; tutorials for a feed
+  system, a tank pressurisation and an expander engine.
 
 ## 7. Schedule
 
-The calendar is a proposal for review; it assumes about half of the working
-time is available for fluidnet and that the H2 lander needs its propulsion
-model before the first hover tests in 2027.
+Proposal, assuming about half of the working time for fluidnet.
 
-| Phase | Months | Work packages | Milestone and exit |
+| Phase | Months | Work packages | Milestone |
 |---|---|---|---|
-| 0 Foundation | Nov 2026 | WP1 | M0: CI on three platforms, Windows wheel, strict validation |
-| 1 Project structure | Dec 2026 – Jan 2027 | WP2, WP3 | M1: subsystems, parameters, studies, run records; RL10 as a study (RP4) |
-| 2 Lander physics | Feb – Apr 2027 | WP5, WP4, WP8 | M2: H2 propulsion model with hover profile; first cold-flow comparison (RP1, RP3) |
-| 3 Expander physics | May – Jul 2027 | WP6 | M3: E60-DEX model by design mode; RL10 start with low-speed maps (RP2) |
-| 4 Application | Mar – Aug 2027, parallel | WP7 | M4: desktop application used by a second engineer |
-| Release 1.0 | Sep 2027 | – | All reference projects accepted; documentation released; model file format frozen for 1.x |
+| 0 Foundation | Nov – Dec 2026 | WP1 | M0: CI, Windows wheel, strict validation, known bugs fixed |
+| 1 Structure and data | Dec 2026 – Feb 2027 | WP2, WP3, WP4 | M1: subsystems, studies, run records, literature data library; RL10 as a study |
+| 2 Mixtures and phenomena | Feb – Jun 2027 | WP5, WP6 | M2: Level 1 validated; STME gas-generator module runs |
+| 3 Components and control | Jun – Sep 2027 | WP7, WP8 | M3: Level 2 and 3 validated; design mode; linear analysis |
+| 4 Staged combustion | Sep 2027 – Jan 2028 | WP9, WP10 | M4: SSME steady and start (Level 4) |
+| Application | Mar 2027 onwards | WP11 | M5: desktop application |
+| Release 1.0 | Q1 2028 | – | Level 4 accepted, documentation released, model format frozen for 1.x |
 
-Total effort is about 33 focused weeks plus documentation.
+Total effort about 55 focused weeks plus documentation.
 
-Next two weeks (start of WP1):
+Next two weeks:
 
-1. Create the private repository and push the current history.
-2. Set up CI for Linux and Windows first (cargo test, wheel build).
-3. Add the model format version key; turn the unknown-key warning into an
-   error with a suggestion.
-4. Store reference-result baselines for all examples.
-5. Release v0.5.1 with a Windows wheel.
+1. Push the repository to GitHub (private).
+2. CI for Linux and Windows; Windows wheel.
+3. Fix OI-019 (ethanol table) and OI-020/021 with baseline checks.
+4. Download DLR PS-LN2-Set1 and set up R1.1 as the first literature case.
+5. Release v0.5.1.
 
 ## 8. Verification and model credibility
 
-Three levels of credibility, stated on every analysis page that uses fluidnet
-results (adapted from the intent of NASA-STD-7009A, without its full
-assessment):
-
 | Level | Use | Required |
 |---|---|---|
-| C1 Exploratory | Trade studies, early sizing | Model runs without warnings; all components inside their verified regime (validation matrix) |
-| C2 Design | Component sizing, margins in design reports | C1, plus: second-person model review with the checklist below; numerical sensitivity done (segments ×2 and rtol ÷10 change the reported results by less than the stated tolerance); inputs traced to sources |
-| C3 Decision-critical | Flight and hot-fire safety margins, test go/no-go | C2, plus: the models of the dominant effects validated against test data of the same or similar hardware; uncertainty of the result quantified (Monte Carlo or bounding cases) |
+| C1 Exploratory | Trade studies, early sizing | Model runs without warnings; all components inside their verified regime |
+| C2 Design | Sizing, margins | C1, plus: independent model review with the checklist below; numerical sensitivity (segments ×2, rtol ÷10) below the stated tolerance; inputs traced to sources |
+| C3 Decision-critical | Safety margins, go/no-go | C2, plus: dominant effects validated against data of similar hardware; result uncertainty quantified |
 
-Model review checklist: topology against the P&ID; every component parameter
-traced to a drawing, data sheet or analysis; units; initial conditions;
-boundary conditions and schedules; fluids; warnings; mass and energy balance
-of the result; comparison with a hand calculation for one operating point.
+Review checklist: topology against the schematic; each parameter traced to a
+source; units; initial and boundary conditions; fluids and components;
+warnings; mass and energy balance of the result; one operating point against
+a hand calculation.
 
-Test strategy for the code: unit tests per model function; verification
-cases per component (analytic or reference code); reference-result baselines
-for all examples and reference projects; validation analyses against test
-data. A change that alters a baseline must state why in the commit.
+For literature validation specifically: the parameters calibrated on a data
+set are listed, and agreement is only claimed on data not used for the
+calibration.
 
 ## 9. Risks
 
 | Risk | Effect | Mitigation |
 |---|---|---|
-| One developer | Work stops or knowledge is lost when the author is unavailable | Documentation as part of every change; CI; Python project layer that others can extend; second maintainer trained during WP3 |
-| Scope larger than available time | Hopper deadlines slip or the platform stays half done | Phases ordered by Hopper needs (lander first); each phase ends with a usable release; WP7 can be delayed without blocking analyses |
-| N2O physics (non-equilibrium, two-phase injectors) not predictive | Wrong pressurant budget or feed margins on the lander | Validate tank and injector models against literature and own cold-flow tests before C2/C3 use; bounding cases with equilibrium and frozen limits |
-| Rust as a barrier for contributors | Physics changes depend on one person | Component authoring handbook ([FNT-DEV-HBK-002](../05-development/adding-a-component.md)); most project work is YAML and Python |
-| Results change between versions unnoticed | Analyses cite results that the current version no longer reproduces | Run records with version and hashes; reference baselines in CI |
-| Ownership and licence unclear | Later conflict between team use and other uses | Decide before the repository is shared (D-020) |
-| Windows-specific build problems | Team cannot install | Windows in CI from the first week; prebuilt wheels and installer |
+| Public engine data is incomplete (SSME maps, volumes and resistances not published) | Calibration has more unknowns than data; agreement is not evidence | Calibrate on steady points, predict other power levels and the transient; report calibrated parameters and their sensitivity; prefer fully specified sets (OEPSS, RL10-IIB) for code checks |
+| Digitisation error | Wrong reference values | Record reading uncertainty; check plots; cross-check against tabulated values where both exist |
+| Licence and export restrictions | Use of data that may not be used | Exclude ITAR-marked AEDC J-2 reports and the Boeing-proprietary SSME Orientation as a data source; record licence per data file; CC BY-NC data only for non-commercial use |
+| Multi-component core change destabilises the solver | Regressions, slower pure-fluid models | Pure-fluid circuits keep two states; baselines in CI before the change; feature behind a model-level declaration until validated |
+| Single developer, large scope | Plan slips | Each phase ends with a usable release; WP11 can move without blocking validation |
+| Fuel-rich equilibrium limits | Gas-generator gas properties wrong at low temperature | Compare with published GG temperatures; empirical tables where equilibrium fails |
 
 ## 10. Decisions taken in this plan (proposed)
 
-Recorded in the [decision log](decisions.md) as proposed until this plan is
-released: D-012 subsystems and parameters resolved in the core; D-013 Python
-project layer with Pydantic v2; D-014 run identity by SHA256 of the resolved
-model; D-015 Parquet for results and test data; D-016 one user-facing
-`fluidnet` command from the Python package; D-017 Tauri for the desktop
-application; D-018 documentation as Markdown in the repository.
+D-012 subsystems and parameters in the core; D-013 Python project layer with
+Pydantic v2; D-014 run identity by SHA256; D-015 Parquet; D-016 one
+`fluidnet` command; D-017 Tauri desktop application; D-025 composition
+states per node with ideal mixing and (P, h, mixture fraction) product
+tables; D-026 reference-problem ladder as the measure of progress, Level 4
+(SSME) as the 1.0 acceptance.
 
-## 11. Open decisions for the owner
+## 11. Open questions for the owner
 
-| ID | Question | Options | Needed by |
-|---|---|---|---|
-| D-019 | Where is the repository hosted? | Personal GitHub account; Hopper team organisation; a company organisation | Start of WP1 |
-| D-020 | Who owns fluidnet and under which licence is it shared with the team? | Personal with a licence to the team; team-owned; open source (MIT/Apache-2.0) | Before sharing the repository |
-| D-021 | Where does the documentation live long term? | Notion (import script); MkDocs site on Azure Static Web Apps; both | M1 |
-| D-022 | Which reference project goes first after WP3? | H2 lander (RP1, proposed); E60-DEX (RP2) | M1 |
-| D-023 | Access to test data | Which campaigns, which format, who maintains the channel maps | Start of WP4 |
-| D-024 | Desktop application or hosted web application first | Desktop (proposed: file-based, offline); hosted on Azure Container Apps with a run service | Start of WP7 |
+| ID | Question | Needed by |
+|---|---|---|
+| D-024 | Desktop application first or a hosted web application | Start of WP11 |
+| Q-1 | Paywalled or blocked sources that would strengthen the ladder; access through a university library would be enough: Zimmerman 2015 thesis (PDF), AIAA 2013-4045, Dyer et al. AIAA 2007-5702, Lecourt & Steelant 2007 (JPP), LE-7A AIAA 2004-3850, JAXA-RR-04-010, NAL TR-868 (LE-5) | Before WP6 and WP9 |
+| Q-2 | Accept a 1.0 date in Q1 2028 with SSME as acceptance, or set a shorter first release at Level 3 | M1 |
 
 ## Revision history
 
 | Rev | Date | Change |
 |---|---|---|
 | A | 2026-11-02 | First draft for review |
+| B | 2026-11-02 | Owner decisions D-019 to D-023: private GitHub repository, no single target application, literature data only. Reference-problem ladder (Levels 1–5) from the literature research; multi-component and reacting flow added as the main architecture change; work packages reorganised (WP1–WP12); SSME as 1.0 acceptance |

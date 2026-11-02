@@ -19,6 +19,8 @@ register of which physical model is covered by which case.
 ## Registers
 
 - [Validation matrix](validation-matrix.md) — FNT-VAL-REG-001. Every physical model with its verification and validation evidence and the gaps.
+- [Literature validation data: engines and turbomachinery](data-engines.md) — FNT-VAL-REG-002. RL10-IIB, SSME, OEPSS gas-generator module, Mark 48 and J-2 turbopumps and further sets, ranked, with access and restriction notes.
+- [Literature validation data: fluid systems and thermal phenomena](data-fluid-systems.md) — FNT-VAL-REG-003. Water hammer, priming, chill-down, tank pressurisation, N2O, flashing flow, venturis, blowdown, code benchmarks.
 
 ## How validation is run
 

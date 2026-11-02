@@ -61,6 +61,8 @@ nav:
       - RL10A-3-3A validation: 04-verification/rl10.md
       - RL10 map digitization: 04-verification/rl10-maps.md
       - Validation matrix: 04-verification/validation-matrix.md
+      - "Literature data: engines": 04-verification/data-engines.md
+      - "Literature data: fluid systems": 04-verification/data-fluid-systems.md
   - 05 Development:
       - 05-development/index.md
       - Build, test and release: 05-development/build-and-release.md
