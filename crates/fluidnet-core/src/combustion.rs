@@ -251,6 +251,12 @@ mod tests {
         assert!((s.cstar - 2328.7).abs() < 2.0, "{}", s.cstar);
         assert!((s.tc - 3508.0).abs() < 5.0);
         assert!(find("CH4", "O2").is_some() && find("C2H5OH", "O2").is_some());
+        // liquid ethanol (293 K) / LOX, 20 bar, O/F 1.492 (a table point): equilibrium
+        // at the enthalpy built from the NIST liquid formation enthalpy
+        // (-277.6 kJ/mol) gives Tc 3187 K. Without the vaporisation enthalpy the
+        // table gave 3253 K (open item OI-019).
+        let e = find("C2H5OH", "O2").unwrap().eval(1.4923076923076923, 20e5);
+        assert!((e.tc - 3187.0).abs() < 5.0, "{}", e.tc);
     }
 
     #[test]

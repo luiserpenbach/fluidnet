@@ -22,6 +22,7 @@ can compute the deviation of the actual injected enthalpy in its own units.
 
 Usage: python gen_combustion_tables.py OUT.json
        python gen_combustion_tables.py --augment TABLES.json   (add dh_wall/cp_wall only)
+       python gen_combustion_tables.py --replace TABLES.json FUEL [FUEL ...]   (regenerate those pairs only)
 """
 import json
 import sys
@@ -64,8 +65,13 @@ def reactant_h(key):
     """(h in Cantera convention J/kg, h in CoolProp convention J/kg) at the reference state."""
     sp, cpname, T, P, _ = PROPELLANTS[key]
     G.TPX = 298.15, 101325.0, {sp: 1.0}
-    h298 = G.enthalpy_mass
-    dh = CP.PropsSI('H', 'T', T, 'P', P, cpname) - CP.PropsSI('H', 'T', 298.15, 'P', 1e5, cpname)
+    h298 = G.enthalpy_mass  # ideal gas at 298.15 K (NASA polynomials)
+    # The CoolProp enthalpy difference must start from the same state: the gas
+    # at 298.15 K. For species that are liquid at 298.15 K and 1 bar (ethanol)
+    # the reference is taken at 100 Pa, where the vapour is close to ideal, so
+    # the vaporisation enthalpy is included (open item OI-019).
+    p_ref = 1e5 if CP.PhaseSI('T', 298.15, 'P', 1e5, cpname) in ('gas', 'supercritical_gas', 'supercritical') else 100.0
+    dh = CP.PropsSI('H', 'T', T, 'P', P, cpname) - CP.PropsSI('H', 'T', 298.15, 'P', p_ref, cpname)
     return h298 + dh, CP.PropsSI('H', 'T', T, 'P', P, cpname)
 
 
@@ -86,8 +92,20 @@ def point(fuel, ox, of, pc, hmix):
     # cannot represent cryogenic enthalpies within the NASA polynomial range
     G.TPY = 2500.0, pc, {PROPELLANTS[fuel][0]: yf, PROPELLANTS[ox][0]: yo}
     G.equilibrate('TP')
-    G.HP = hmix, pc
-    G.equilibrate('HP')
+    try:
+        G.HP = hmix, pc
+        G.equilibrate('HP')
+    except ct.CanteraError:
+        # very fuel-rich, low-enthalpy mixtures: the frozen HP step fails; find
+        # the temperature at which the TP equilibrium has the target enthalpy
+        Y0 = {PROPELLANTS[fuel][0]: yf, PROPELLANTS[ox][0]: yo}
+
+        def dh(T):
+            G.TPY = T, pc, Y0
+            G.equilibrate('TP')
+            return G.enthalpy_mass - hmix
+
+        brentq(dh, 300.0, 4500.0, xtol=1e-3)
     Tc, Mc, h0, s0 = G.T, G.mean_molecular_weight, G.enthalpy_mass, G.entropy_mass
     gam_f = G.cp_mass / G.cv_mass
     state0 = G.state
@@ -114,8 +132,20 @@ def wall_potential(fuel, ox, of, pc, hmix):
     yf, yo = 1.0 / (1.0 + of), of / (1.0 + of)
     G.TPY = 2500.0, pc, {PROPELLANTS[fuel][0]: yf, PROPELLANTS[ox][0]: yo}
     G.equilibrate('TP')
-    G.HP = hmix, pc
-    G.equilibrate('HP')
+    try:
+        G.HP = hmix, pc
+        G.equilibrate('HP')
+    except ct.CanteraError:
+        # very fuel-rich, low-enthalpy mixtures: the frozen HP step fails; find
+        # the temperature at which the TP equilibrium has the target enthalpy
+        Y0 = {PROPELLANTS[fuel][0]: yf, PROPELLANTS[ox][0]: yo}
+
+        def dh(T):
+            G.TPY = T, pc, Y0
+            G.equilibrate('TP')
+            return G.enthalpy_mass - hmix
+
+        brentq(dh, 300.0, 4500.0, xtol=1e-3)
     h0 = G.enthalpy_mass
     G.TP = T_WALL, pc
     G.equilibrate('TP')
@@ -186,8 +216,31 @@ def main(out):
         json.dump(dict(meta=meta, tables=tables), f, separators=(',', ':'))
 
 
+def replace_pairs(path, fuels):
+    """Regenerate only the tables of the given fuels in an existing file."""
+    global PAIRS
+    keep = PAIRS
+    PAIRS = [p for p in keep if p[0] in fuels]
+    tmp = path + '.part'
+    main(tmp)
+    with open(tmp) as f:
+        new = json.load(f)
+    with open(path) as f:
+        data = json.load(f)
+    by_fuel = {t['fuel']: t for t in new['tables']}
+    data['tables'] = [by_fuel.get(t['fuel'], t) for t in data['tables']]
+    data['meta'].update(cantera=ct.__version__, coolprop=CP.get_global_param_string('version'))
+    with open(path, 'w') as f:
+        json.dump(data, f, separators=(',', ':'))
+    import os
+    os.remove(tmp)
+    PAIRS = keep
+
+
 if __name__ == '__main__':
     if sys.argv[1] == '--augment':
         augment(sys.argv[2])
+    elif sys.argv[1] == '--replace':
+        replace_pairs(sys.argv[2], sys.argv[3:])
     else:
         main(sys.argv[1])

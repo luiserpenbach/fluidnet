@@ -377,6 +377,9 @@ pub struct Network {
     pub actuators: Vec<Actuator>,
     /// Latching actuators move one way only (off for steady-state solves).
     pub latch_active: bool,
+    /// States held at a value (steady-state fallback with tanks held at their
+    /// initial state): their rate becomes (value - y) / 1 ms.
+    pub held_states: Vec<(usize, f64)>,
     pub comps: Vec<CompInfo>,
     pub n_states: usize,
     pub state_kind: Vec<StateKind>,
@@ -967,6 +970,9 @@ impl Network {
                 dy[sp + 1] = (rp * esum + msum) / det;
             }
         }
+        for &(i, v) in &self.held_states {
+            dy[i] = (v - y[i]) / 1e-3;
+        }
         for (s, sh) in self.shafts.iter().enumerate() {
             if let (Some(st), Some(wh)) = (sh.state, sh.hold) {
                 dy[st] = (wh - ev.speed[s]) / 1e-3;
@@ -1352,4 +1358,20 @@ pub fn boundary_props(fl: &FluidTable, p: &Schedule, spec: &BSpec, t: f64) -> Re
         BSpec::X(s) => fl.h_px(pv, s.at(t).clamp(0.0, 1.0))?,
     };
     Ok(fl.props_ph_x(pv, h))
+}
+
+impl Network {
+    /// (pressure state index, node index) of every tank.
+    pub fn tank_states(&self) -> Vec<(usize, usize)> {
+        self.nodes
+            .iter()
+            .enumerate()
+            .filter_map(|(i, n)| match (&n.kind, n.comp) {
+                (NodeKind::Volume { sp, .. }, Some(ci)) if self.comps[ci].kind == "tank" => {
+                    Some((*sp, i))
+                }
+                _ => None,
+            })
+            .collect()
+    }
 }

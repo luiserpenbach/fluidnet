@@ -86,6 +86,42 @@ fn heated_pipe_closes_energy_balance() {
 }
 
 #[test]
+fn heated_pipe_between_boundaries_keeps_end_heat() {
+    // The end wall elements sit on boundary nodes; their heat must go into the
+    // neighbouring internal volumes, not into the boundaries (OI-021).
+    let r = run("tests_models/heated_pipe_boundaries.yaml", Mode::Steady);
+    let mdot = r.last("pipe.s10.mdot").unwrap();
+    let dh = r.last("pipe.n9.h").unwrap() - r.last("src.h").unwrap();
+    let q = std::f64::consts::PI * 0.01 * 2.0 * 1e5;
+    assert!(rel(mdot * dh, q) < 1e-3, "mdot dh {} vs Q {q}", mdot * dh);
+}
+
+#[test]
+fn closed_tank_steady_state_is_robust_to_small_perturbations() {
+    // A tank behind a closed (leaking) valve has no exact steady state. The
+    // solver must still return the quasi-steady state for any initial state,
+    // not only for the one in the example (CI on macOS failed on rounding
+    // differences before the tanks-held fallback).
+    let base = std::fs::read_to_string(root().join("examples/gn2_blowdown.yaml")).unwrap();
+    let lib = lib();
+    for (p0, t0) in [
+        ("299.99999", "290"),
+        ("301", "290"),
+        ("305", "290.001"),
+        ("300.00001", "290.001"),
+    ] {
+        let src = base
+            .replace("P0: 300 bar", &format!("P0: {p0} bar"))
+            .replace("T0: 290 K", &format!("T0: {t0} K"));
+        let r =
+            run_model(&src, &lib, Mode::Steady).unwrap_or_else(|e| panic!("{p0} bar {t0} K: {e}"));
+        let p_line = r.last("vent_valve.in.P").unwrap();
+        let p_tank: f64 = p0.parse::<f64>().unwrap() * 1e5;
+        assert!(rel(p_line, p_tank) < 1e-6, "{p0} bar: line {p_line} Pa");
+    }
+}
+
+#[test]
 fn water_hammer_matches_joukowsky() {
     let r = run("examples/water_hammer.yaml", Mode::Transient);
     let t = &r.time;

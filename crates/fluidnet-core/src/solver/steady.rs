@@ -402,6 +402,61 @@ fn solve_direct(
     Ok(ptc_res)
 }
 
+/// Largest relative mass rate of a tank, |d(rho)/dt| / rho in 1/s, below which
+/// a solution with the tanks held at their initial state is accepted as a
+/// quasi-steady state (mass changes by less than 0.01 % per second).
+const QUASI_STEADY_TANK_RATE: f64 = 1e-4;
+
+/// Steady-state fallback for networks with tanks that cannot reach an exact
+/// steady state (a tank draining through a closed valve's leakage): hold every
+/// tank at its initial state, solve the rest, and accept the result if the tanks
+/// change slowly enough to be reservoirs on the time scale of the network.
+fn tanks_held(
+    net: &Network,
+    y0: &[f64],
+    t: f64,
+    max_iter: usize,
+    st: &mut SteadyStats,
+) -> Result<Option<Vec<f64>>> {
+    let tanks = net.tank_states();
+    if tanks.is_empty() {
+        return Ok(None);
+    }
+    let mut held = net.clone();
+    for &(sp, _) in &tanks {
+        held.held_states.push((sp, y0[sp]));
+        held.held_states.push((sp + 1, y0[sp + 1]));
+    }
+    let mut st2 = SteadyStats::default();
+    let y = match solve_direct(&held, y0, t, max_iter, &mut st2)? {
+        Ok(y) => y,
+        Err(_) => return Ok(None),
+    };
+    // rates of the tanks in the full network at that state
+    let mut ev = Eval::new(net);
+    let mut f = vec![0.0; net.n_states];
+    if net.rhs(t, &y, &mut f, &mut ev).is_err() {
+        return Ok(None);
+    }
+    let mut worst: f64 = 0.0;
+    for &(sp, node) in &tanks {
+        let pr = net.fluids[net.nodes[node].fluid].props_ph(y[sp], y[sp + 1]);
+        let rate = (pr.drho_dp() * f[sp] + pr.drho_dh() * f[sp + 1]).abs() / pr.rho.max(1e-300);
+        worst = worst.max(rate);
+    }
+    if worst > QUASI_STEADY_TANK_RATE {
+        return Ok(None);
+    }
+    st.iterations += st2.iterations;
+    st.rhs_evals += st2.rhs_evals;
+    st.jacobians += st2.jacobians;
+    st.method = format!(
+        "tanks held at their initial state, quasi-steady ({})",
+        st2.method
+    );
+    Ok(Some(y))
+}
+
 pub fn solve(
     net: &Network,
     y0: &[f64],
@@ -463,27 +518,30 @@ pub fn solve(
     let direct = solve_direct(net, y0, t, max_iter, &mut st)?;
     let direct = match direct {
         Ok(y) => Ok(y),
-        Err(e) => {
-            // last resort: settle with an ordinary transient (bounded steps, free
-            // shafts), then polish. Large engine models started from a crude
-            // guess can surge or cavitate when marched with huge steps.
-            match settle(latched, y_user, t) {
-                Some(ys) => {
-                    let mut st2 = SteadyStats::default();
-                    match solve_direct(net, &ys, t, max_iter, &mut st2)? {
-                        Ok(y) => {
-                            st.iterations += st2.iterations;
-                            st.rhs_evals += st2.rhs_evals;
-                            st.jacobians += st2.jacobians;
-                            st.method = format!("transient settling + {}", st2.method);
-                            Ok(y)
+        Err(e) => match tanks_held(net, y0, t, max_iter, &mut st)? {
+            Some(y) => Ok(y),
+            None => {
+                // last resort: settle with an ordinary transient (bounded steps, free
+                // shafts), then polish. Large engine models started from a crude
+                // guess can surge or cavitate when marched with huge steps.
+                match settle(latched, y_user, t) {
+                    Some(ys) => {
+                        let mut st2 = SteadyStats::default();
+                        match solve_direct(net, &ys, t, max_iter, &mut st2)? {
+                            Ok(y) => {
+                                st.iterations += st2.iterations;
+                                st.rhs_evals += st2.rhs_evals;
+                                st.jacobians += st2.jacobians;
+                                st.method = format!("transient settling + {}", st2.method);
+                                Ok(y)
+                            }
+                            Err(e2) => Err(e2),
                         }
-                        Err(e2) => Err(e2),
                     }
+                    None => Err(e),
                 }
-                None => Err(e),
             }
-        }
+        },
     };
     match direct {
         Ok(y) => {

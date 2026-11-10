@@ -575,6 +575,23 @@ impl Network {
                         }
                     };
                     let wet_total = npar * std::f64::consts::PI * d * l;
+                    // node that receives the heat of the wall element at chain
+                    // position pos: an end element whose node is a boundary (or a
+                    // chamber port) puts its heat into the neighbouring internal
+                    // volume of the line, so it stays in the energy balance
+                    let heat_node = |pos: usize, nodes: &Vec<Node>| -> Option<usize> {
+                        let nd = chain[pos];
+                        let is_volume = |k: usize| matches!(nodes[k].kind, NodeKind::Volume { .. });
+                        if is_volume(nd) {
+                            return Some(nd);
+                        }
+                        let nb = if pos == 0 {
+                            chain.get(1)
+                        } else {
+                            pos.checked_sub(1).map(|q| &chain[q])
+                        };
+                        nb.copied().filter(|&k| is_volume(k))
+                    };
                     if p.has("wall_thickness") {
                         if p.has("T_wall") {
                             return Err(Error::Model(format!("{id}: T_wall (prescribed wall temperature) cannot be combined with wall_thickness")));
@@ -664,8 +681,12 @@ impl Network {
                                 }
                         };
                         let wsum: f64 = (0..npos).map(weight).sum();
-                        for (pos, &nd) in chain.iter().enumerate() {
+                        for pos in 0..chain.len() {
                             let (f, brs) = share(pos);
+                            let Some(nd) = heat_node(pos, &nodes) else {
+                                warnings.push(format!("{id}: wall element {pos} lies between two boundaries; its heat leaves the model"));
+                                continue;
+                            };
                             let hot_share = weight(pos) / wsum.max(1e-300);
                             let hot_local = match &hot {
                                 HotSide::Chamber {
@@ -717,8 +738,12 @@ impl Network {
                                     breakpoints.extend(s.breakpoints())
                                 }
                             }
-                            for (pos, &nd) in chain.iter().enumerate() {
+                            for pos in 0..chain.len() {
                                 let (f, brs) = share(pos);
+                                let Some(nd) = heat_node(pos, &nodes) else {
+                                    warnings.push(format!("{id}: wall element {pos} lies between two boundaries; its heat leaves the model"));
+                                    continue;
+                                };
                                 nodes[nd].heat.push(Heat::Wall {
                                     area: wet_total * f,
                                     d,
@@ -1002,30 +1027,6 @@ impl Network {
             nodes[b.b].conn.push((k, 1.0));
         }
 
-        // volumes of implicit junctions / pipe-end contributions; where elements
-        // meet without a pipe, use a stub of five bore diameters per element
-        for (i, n) in nodes.iter_mut().enumerate() {
-            if let NodeKind::Volume { vol, .. } = &mut n.kind {
-                *vol += node_vol_extra[i];
-                if *vol <= 0.0 {
-                    let stub: f64 = n
-                        .conn
-                        .iter()
-                        .map(|&(k, _)| {
-                            let a = match &branches[k].kind {
-                                BranchKind::Restriction { cda, .. }
-                                | BranchKind::Turbine { cda, .. } => cda / 0.8,
-                                BranchKind::Pump { map, .. } => map.q_d.max(1e-4) / 10.0,
-                                _ => 0.0,
-                            };
-                            let d = (4.0 * a / std::f64::consts::PI).sqrt();
-                            a * 5.0 * d
-                        })
-                        .sum();
-                    *vol = stub.max(DEFAULT_JUNCTION_VOLUME);
-                }
-            }
-        }
         for &(_, _, nd) in &chamber_ports {
             let (k, _) = nodes[nd].conn[0];
             let b = &branches[k];
@@ -1258,6 +1259,33 @@ impl Network {
                 map.w_d = pd.w_d;
             }
         }
+
+        // volumes of implicit junctions / pipe-end contributions; where elements
+        // meet without a pipe, use a stub of five bore diameters per element.
+        // After the pump design points, so a pump stub uses its design flow
+        // (area for 10 m/s at the design volume flow).
+        for (i, n) in nodes.iter_mut().enumerate() {
+            if let NodeKind::Volume { vol, .. } = &mut n.kind {
+                *vol += node_vol_extra[i];
+                if *vol <= 0.0 {
+                    let stub: f64 = n
+                        .conn
+                        .iter()
+                        .map(|&(k, _)| {
+                            let a = match &branches[k].kind {
+                                BranchKind::Restriction { cda, .. }
+                                | BranchKind::Turbine { cda, .. } => cda / 0.8,
+                                BranchKind::Pump { map, .. } => map.q_d.max(1e-4) / 10.0,
+                                _ => 0.0,
+                            };
+                            let d = (4.0 * a / std::f64::consts::PI).sqrt();
+                            a * 5.0 * d
+                        })
+                        .sum();
+                    *vol = stub.max(DEFAULT_JUNCTION_VOLUME);
+                }
+            }
+        }
         // speed guesses for steady-state continuation
         for (s, sh) in shafts.iter_mut().enumerate() {
             sh.w_guess = if sh.w0 > 0.0 {
@@ -1446,6 +1474,7 @@ impl Network {
             chambers,
             actuators,
             latch_active: true,
+            held_states: vec![],
             comps,
             n_states,
             state_kind,

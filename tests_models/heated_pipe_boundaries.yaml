@@ -1,0 +1,8 @@
+name: Heated pipe between two boundaries
+description: Water from a 3 bar reservoir through a 2 m, 10 mm pipe heated with 100 kW/m2 into a 1 bar sink. The heat of the end wall elements must enter the line (open item OI-021).
+components:
+  - {id: src, type: boundary, fluid: H2O, P: 3 bar, T: 300 K}
+  - {id: pipe, type: pipe, length: 2 m, diameter: 10 mm, segments: 10, q_wall: 100 kW/m2}
+  - {id: snk, type: boundary, fluid: H2O, P: 1 bar, T: 300 K}
+connections: [[src, pipe.in], [pipe.out, snk]]
+simulation: {t_end: 1, output_dt: 0.1}
