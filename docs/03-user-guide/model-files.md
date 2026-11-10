@@ -1,6 +1,6 @@
 # Model file standard
 
-FNT-USR-STD-001 · Rev A · Released · 2026-11-02 · Owner: Luis Erpenbach
+FNT-USR-STD-001 · Rev B · Released · 2026-11-10 · Owner: Luis Erpenbach
 
 ## 1. Purpose
 
@@ -45,9 +45,9 @@ units and schedules in `crates/fluidnet-core/src/units.rs`, parameter access in
 | `connections` | list | no | empty | Port-to-port connections (2.5). |
 | `simulation` | mapping | no | all defaults | Run settings (2.11). |
 
-Keys other than these five are ignored without a warning. A misspelt top-level
-key therefore silently takes its default; check the console line
-`<name> [mode]: N states` after a change.
+Any other top-level key is an error (`unknown field`). The optional key
+`fluidnet: "0.5"` states the fluidnet version the file was written for; a file
+written for a newer minor version than the installed one is rejected.
 
 ### 2.3 Components
 
@@ -79,10 +79,11 @@ Each entry of `components` is a mapping with:
 Rules:
 
 1. An unknown `type` is an error (`model error: X: unknown component type 'oriface'`).
-2. A parameter that the type does not define produces the warning
-   `X: unknown parameter 'k' ignored` and has no effect. The keys `ui`,
+2. A parameter that the type does not define is an error that names the
+   closest valid parameter (`model error: vent_valve: unknown parameter 'cdd';
+   did you mean 'cd'?`). The keys `ui`,
    `label`, `notes`, `x`, `y` and `position` are reserved for front ends and
-   are ignored without a warning (`IGNORED_KEYS` in `catalog.rs`); the web
+   are accepted and ignored (`IGNORED_KEYS` in `catalog.rs`); the web
    interface stores the schematic position as `ui: {x, y, flip}`. The
    `boundary` type uses `x` as its vapour-quality parameter, so on a boundary
    `x` is read as quality.
@@ -306,8 +307,9 @@ The definitions of φ, ψ, η and u/c0 are in
 
 ### 2.11 Simulation settings
 
-All `simulation` values are bare numbers in SI units (strings with units are a
-parse error here). Unknown keys are ignored without a warning.
+Times (`t_end`, `output_dt`, `max_step`, `steady_time`) are bare numbers in
+seconds or strings with a time unit (`t_end: 1 min`, `output_dt: 2 ms`). An
+unknown key is an error that lists the valid keys.
 
 | Key | Default | Meaning |
 |---|---|---|
@@ -423,3 +425,4 @@ Every file in `examples/` follows this standard; the
 | Rev | Date | Change |
 |---|---|---|
 | A | 2026-11-02 | First release |
+| B | 2026-11-10 | v0.5.1: unknown parameters and unknown keys are errors; `fluidnet` version key; time units in `simulation`; dimensionless parameters reject dimensional units; tank `steady` parameter |

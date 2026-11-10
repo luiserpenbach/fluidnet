@@ -195,14 +195,13 @@ prebuilt standard library for the target), use the `-Zbuild-std` fallback in
 
 ## Windows notes
 
-fluidnet has no Windows-specific code, but a Windows build has not yet been
-tested (CI on Windows is the first task of WP1 in the
-[platform plan](../01-project/platform-plan.md)). Use the standard Rust
-toolchain for the MSVC target, which requires the Microsoft C++ build tools (installed with
-Visual Studio or the separate Build Tools installer, as `rustup` prompts).
-Prebuilt Python wheels have so far been produced for Linux only; on Windows
-build the wheel from source with maturin as below (open item OI-016 in
-[open items](../01-project/open-items.md)).
+From v0.5.1 fluidnet is built and tested on Windows in CI (MSVC target), and
+each CI run on GitHub provides a Windows wheel as a run artifact
+(`wheel-windows-latest`): download it from the run page under Actions and
+install it with `pip install fluidnet-<version>-cp38-abi3-win_amd64.whl`. To
+build from source, use the standard Rust toolchain for the MSVC target, which
+requires the Microsoft C++ build tools (installed with Visual Studio or the
+separate Build Tools installer, as `rustup` prompts).
 
 | Task | PowerShell |
 |---|---|

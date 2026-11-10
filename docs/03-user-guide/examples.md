@@ -22,9 +22,9 @@ suite depends on.
   that uses the file; results and tolerances of the tests are in
   [analytic cases](../04-verification/analytic-cases.md) and
   [RL10 validation](../04-verification/rl10.md).
-- Every file in `examples/` is also run as a transient and, except
-  `regulated_pressurization.yaml`, as a steady state by the test
-  `all_examples_run_steady_and_transient`.
+- Every file in `examples/` is also run as a transient and as a steady state
+  by the test `all_examples_run_steady_and_transient`, and all files of both
+  folders are compared with stored results by `python tools/baselines.py check`.
 - When a file changes, rerun the two commands and update its row.
 
 ## Examples (`examples/`)
@@ -35,8 +35,8 @@ These files are also offered in the Examples menu of the
 | File | What it models | Key components | States | Transient (simulated, solve time) | Steady state (solve time, method) | Test |
 |---|---|---|---|---|---|---|
 | `lox_feed_startup.yaml` | Subcooled LOX feed line (25 bar, 90 K) with a quick-opening main valve (opening 0.1–0.35 s) against a chamber whose pressure rises from 1 bar to 15 bar at ignition; valve-opening surge and line dynamics. | boundary, pipe (3 m, 12 segments), valve, junction (80 mL), orifice | 38 | 1.5 s, 117 ms | 4.3 ms, pseudo-transient | all examples |
-| `gn2_blowdown.yaml` | 50 L nitrogen bottle at 300 bar vented through a line, valve and 3 mm orifice; choked flow and adiabatic cooling of the bottle. | tank, pipe (6 segments), valve, orifice, boundary | 22 | 60 s, 7.7 ms | 5.4 ms, quasi-steady (valve closed at t = 0 s) | all examples |
-| `regulated_pressurization.yaml` | 20 L GN2 bottle at 300 bar pressurising a 50 L ullage through a regulator set to 35 bar; draw-off valve opens at 5–5.5 s. | 2 tanks, pipe, regulator, valve, boundary | 16 | 60 s, 7.3 ms | No steady state at t = 0 s (the closed draw-off valve lets the regulator fill the ullage); fails by design | all examples (transient only) |
+| `gn2_blowdown.yaml` | 50 L nitrogen bottle at 300 bar vented through a line, valve and 3 mm orifice; choked flow and adiabatic cooling of the bottle. | tank, pipe (6 segments), valve, orifice, boundary | 22 | 60 s, 7.7 ms | about 5 ms, bottle held as a reservoir (valve closed at t = 0 s) | all examples |
+| `regulated_pressurization.yaml` | 20 L GN2 bottle at 300 bar pressurising a 50 L ullage through a regulator set to 35 bar; draw-off valve opens at 5–5.5 s. | 2 tanks, pipe, regulator, valve, boundary | 16 | 60 s, 7.3 ms | about 5 ms, both tanks held as reservoirs | all examples |
 | `water_hammer.yaml` | 100 m, 50 mm water line at 1.8 m/s, valve closed in 2 ms; Joukowsky surge and period 4L/a. | boundary, pipe (50 segments), valve (`leak: 0`) | 150 | 0.6 s from the steady state, 328 ms (`rtol` 1e-3) | 14 ms, pseudo-transient | `water_hammer_matches_joukowsky` |
 | `cavitating_venturi.yaml` | Water through a 3 mm cavitating venturi while the back-pressure rises from 1 bar to 29 bar; constant flow until the throat un-chokes near 85 % recovery. | boundary, 2 pipes, venturi | 18 | 10 s from the steady state, 7.6 ms | 1.7 ms, pseudo-transient | all examples |
 | `lh2_heated_channel.yaml` | Supercritical hydrogen at 40 bar heated from 24 K in a 6 mm channel whose wall temperature rises from 100 K to 400 K; cooling-jacket proxy. | boundary, orifice, pipe (20 segments, `T_wall` schedule) | 62 | 4 s from the steady state, 45 ms | 36 ms, time-marching + Newton | all examples |

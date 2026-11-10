@@ -122,6 +122,42 @@ fn closed_tank_steady_state_is_robust_to_small_perturbations() {
 }
 
 #[test]
+fn model_files_are_validated_strictly() {
+    let base = std::fs::read_to_string(root().join("examples/gn2_blowdown.yaml")).unwrap();
+    let lib = lib();
+    let err = |src: String| {
+        run_model(&src, &lib, Mode::Steady)
+            .err()
+            .map(|e| e.to_string())
+            .unwrap_or_default()
+    };
+    // misspelt parameter: error with the closest name
+    let e = err(base.replace("cd: 0.8, opening", "cdd: 0.8, opening"));
+    assert!(
+        e.contains("unknown parameter 'cdd'") && e.contains("did you mean 'cd'"),
+        "{e}"
+    );
+    // misspelt simulation key and unknown top-level key
+    assert!(err(base.replace("t_end: 60", "t_ned: 60")).contains("t_ned"));
+    assert!(err(format!("{base}\nextra: 1\n")).contains("extra"));
+    // a dimensional unit on a dimensionless parameter
+    assert!(
+        err(base.replace("cd: 0.8, opening", "cd: 0.8 bar, opening")).contains("dimensionless")
+    );
+    // file written for a newer version
+    assert!(err(format!("fluidnet: \"99.0\"\n{base}")).contains("Update fluidnet"));
+    // accepted: version of this build, time units, a fluid given by its label
+    let ok = format!("fluidnet: \"0.5\"\n{base}")
+        .replace(
+            "t_end: 60, output_dt: 0.1",
+            "t_end: 1 min, output_dt: 100 ms",
+        )
+        .replace("fluid: N2, P: 1 bar", "fluid: Nitrogen, P: 1 bar");
+    let r = run_model(&ok, &lib, Mode::Transient).unwrap();
+    assert!((r.time.last().unwrap() - 60.0).abs() < 1e-9);
+}
+
+#[test]
 fn water_hammer_matches_joukowsky() {
     let r = run("examples/water_hammer.yaml", Mode::Transient);
     let t = &r.time;
@@ -174,10 +210,8 @@ fn all_examples_run_steady_and_transient() {
         }
         let rel_path = format!("examples/{}", p.file_name().unwrap().to_string_lossy());
         run(&rel_path, Mode::Transient);
-        // a system that is closed at t = 0 (tanks behind closed valves) has no unique steady state
-        if !rel_path.contains("regulated_pressurization") {
-            run(&rel_path, Mode::Steady);
-        }
+        // tanks are reservoirs in a steady solve, so closed systems solve too
+        run(&rel_path, Mode::Steady);
     }
 }
 

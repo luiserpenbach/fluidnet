@@ -1,6 +1,6 @@
 # Build, test and release
 
-FNT-DEV-HBK-001 · Rev A · Released · 2026-11-02 · Owner: Luis Erpenbach
+FNT-DEV-HBK-001 · Rev B · Released · 2026-11-10 · Owner: Luis Erpenbach
 
 ## Purpose
 
@@ -134,6 +134,25 @@ and are not committed (`.gitignore`). Development server: `npm run dev`.
 The example models offered in the interface are imported from `examples/` at
 build time (`App.tsx`); rebuild the interface after changing them.
 
+### Reference-result baselines and CI
+
+`python tools/baselines.py check` runs every model in `examples/` and
+`tests_models/` steady and transient with the CLI and compares all channels
+with the stored results in `validation/baselines/` (relative tolerance 1e-6
+for steady states, 1e-4 for transients, on the largest magnitude of each
+channel). When a change is meant to alter results, run
+`python tools/baselines.py update --reason "..."`; the reason is appended to
+`validation/baselines/CHANGELOG.md` and belongs in the commit message.
+Baselines are generated and checked on Linux (open item OI-031).
+
+GitHub Actions (`.github/workflows/ci.yml`) runs on every push to `main`:
+rustfmt and clippy with warnings as errors; `cargo test --release` on Linux,
+Windows and macOS; the baseline check; wheels for the three platforms with an
+install-and-run check (downloadable as run artifacts); the WebAssembly and web
+interface build; `mkdocs build --strict` and a check that the generated
+component reference is up to date. The toolchain is pinned to Rust 1.97.0 in
+the workflow; raise it deliberately.
+
 ### 6. Python wheel
 
 ```sh
@@ -146,8 +165,7 @@ The tables must be copied first; `pyproject.toml` includes
 `python/fluidnet/fluids/*.fntb` in the wheel and the sdist. The extension uses
 the stable ABI for Python 3.8 (`abi3-py38`), so one wheel per platform covers
 all Python versions from 3.8. Wheels are built on the platform they are for;
-so far only Linux wheels have been produced (open item OI-016 in
-[open items](../01-project/open-items.md)). Check a wheel in a clean virtual
+CI builds wheels for Linux, Windows and macOS on every push. Check a wheel in a clean virtual
 environment with `python -c "import fluidnet as fn; print(fn.__version__, fn.fluids_dir())"`
 and one example run.
 
@@ -300,3 +318,4 @@ are listed there in brackets.
 | Rev | Date | Change |
 |---|---|---|
 | A | 2026-11-02 | First release |
+| B | 2026-11-10 | v0.5.1: baselines and CI |

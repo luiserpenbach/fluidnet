@@ -1,6 +1,6 @@
 # Command-line tool
 
-FNT-USR-HBK-003 · Rev A · Released · 2026-11-02 · Owner: Luis Erpenbach
+FNT-USR-HBK-003 · Rev B · Released · 2026-11-10 · Owner: Luis Erpenbach
 
 ## Purpose
 
@@ -28,7 +28,8 @@ machine.
 fluidnet run MODEL [--steady] [--out FILE.csv|FILE.json] [--print PATTERNS] [--fluids DIR]
 fluidnet check MODEL [--fluids DIR]
 fluidnet catalog
-fluidnet props FLUID P T [--fluids DIR]
+fluidnet props FLUID P T [--fluids DIR]     P and T with units ("10 bar" "90 K") or in Pa and K
+fluidnet version
 
 developer commands:
 fluidnet bench MODEL [--fluids DIR]
@@ -44,18 +45,19 @@ Options may follow in any order. `MODEL` is a YAML or JSON file.
 | Item | Behaviour |
 |---|---|
 | Fluid tables | Every subcommand except `catalog` loads all tables from the directory found by the search in [installation](getting-started.md#2-make-sure-the-fluid-tables-are-found); `--fluids DIR` overrides it. |
-| Warnings | Compilation warnings are printed to standard error as `warning: <text>` before the run (for example `warning: a: unknown parameter 'colour' ignored`). |
+| Warnings | Compilation warnings are printed to standard error as `warning: <text>` before the run. |
 | Errors | Model, parse, fluid and solver errors are printed to standard error as one line starting with `model error:`, `parse error:`, `fluid error:` or `solver error:`. |
 | Standard output and error | Run summaries and statistics go to standard error; channel values (`run`), the node list (`check`), the catalog and property values go to standard output. |
-| Pipes | Do not pipe the output into a program that closes early (`| head`); the tool then stops with a `failed printing to stdout: Broken pipe` panic. Redirect to a file instead. |
+| Pipes | Output can be piped into a program that closes early (`| head`); the tool then ends quietly. |
 
 ### Exit codes
 
 | Code | Meaning |
 |---|---|
-| 0 | Success. Also returned when a transient stopped early after its first output time; check the `STOPPED EARLY` line. |
+| 0 | Success. |
 | 1 | The model file cannot be read or parsed, the model does not compile, the steady state does not converge, the transient fails before its first output, the output file cannot be written, or `props` names an unknown fluid. |
-| 2 | Usage error (no subcommand, missing arguments, unknown subcommand) or no fluid table directory found. An unknown subcommand is detected only after the model file has been read and compiled, so a missing file or a model error is reported first, with code 1. |
+| 2 | Usage error (no subcommand, missing arguments, unknown subcommand, unreadable number or unit in `props`, unknown fluid or state name in the developer commands) or no fluid table directory found. The subcommand is checked before anything is read. |
+| 3 | A transient stopped early after its first output time (`STOPPED EARLY` line). The results up to the stop are printed and written. |
 
 ## Subcommands
 
@@ -157,13 +159,13 @@ confirm the topology and the node names before a run.
 ```
 $ fluidnet check examples/gn2_blowdown.yaml
 GN2 bottle blowdown: 9 nodes, 8 branches, 22 states
-  node bottle                   fluid N2    "V = 5.0013e-2 m3"
-  node vent_valve.in            fluid N2    "V = 1.3090e-5 m3"
-  node vent_valve.out           fluid N2    "V = 2.1166e-6 m3"
+  node bottle                   fluid N2    V = 5.0013e-2 m3
+  node vent_valve.in            fluid N2    V = 1.3090e-5 m3
+  node vent_valve.out           fluid N2    V = 2.1166e-6 m3
   node ambient                  fluid N2    "boundary"
-  node line.n1                  fluid N2    "V = 2.6180e-5 m3"
+  node line.n1                  fluid N2    V = 2.6180e-5 m3
   ...
-  node line.n5                  fluid N2    "V = 2.6180e-5 m3"
+  node line.n5                  fluid N2    V = 2.6180e-5 m3
   branch line.s1                bottle -> line.n1
   ...
   branch line.s6                line.n5 -> vent_valve.in
@@ -226,9 +228,8 @@ viscosity `mu` (Pa s), conductivity `k` (W/m/K), heat capacity `cp` (J/kg/K),
 the derivatives `dvdp` = (∂v/∂P)_h (m³/kg/Pa) and `dvdh` = (∂v/∂h)_P (m³/J),
 sound speed `a` (m/s) and quality `x` (not computed by this command).
 Temperatures on the saturation line are ambiguous in (P, T); use the Python
-`props` function with `h` for two-phase states. An argument that is not a
-number is replaced by 1e5 Pa or 300 K without a message; an unknown fluid exits
-with code 1.
+`props` function with `h` for two-phase states. P and T accept units (`"25 bar"`, `"90 K"`); an argument that cannot be read
+exits with code 2, an unknown fluid with code 1.
 
 ### bench (developer)
 
@@ -280,7 +281,7 @@ sweep of tank.P (y = 1.000000000e6):
 2 colors for 2 states; worst rel diff 5.220e-10 at d(tank.h)/d(tank.h): full -1.7380e-2 colored -1.7380e-2
 ```
 
-A misspelt state name in `--probe` aborts with a panic.
+A misspelt state name in `--probe` lists the state names and exits with code 2.
 
 ### propsbatch (developer)
 
@@ -291,7 +292,7 @@ fluidnet propsbatch FLUID < input.txt
 Reads lines of `P h` (Pa, J/kg) from standard input and writes one line of
 `rho T s a` (kg/m³, K, J/kg/K, m/s) per input line, for comparing the tables
 against CoolProp in bulk. Lines that do not hold two numbers are skipped. An
-unknown fluid aborts with a panic.
+unknown fluid exits with code 2.
 
 ```
 $ printf "25e5 -130000\n1e5 100000\n" | fluidnet propsbatch O2
@@ -351,3 +352,4 @@ Steady state of the RL10A-3-3A model with the turbopump channels:
 | Rev | Date | Change |
 |---|---|---|
 | A | 2026-11-02 | First release |
+| B | 2026-11-10 | v0.5.1: exit code 3 for an early stop; subcommand checked first; `props` reads units and reports bad arguments; `version`; quiet end on a closed pipe |

@@ -327,6 +327,13 @@ pub fn specs() -> Vec<CompSpec> {
     ];
     tank.extend(init_params());
     tank[3].optional = false;
+    tank.push(choice(
+        "steady",
+        "In a steady-state solve",
+        &["hold", "solve"],
+        "hold",
+        "hold: the tank is a reservoir at its initial (or warm-start) state, as for a propellant or pressurant tank; solve: its state follows from the flow balance like a junction (a plenum between a regulator and a vent).",
+    ));
     v.push(CompSpec {
         kind: "tank",
         label: "Tank / volume",
@@ -959,6 +966,18 @@ impl<'a> Params<'a> {
             .collect()
     }
 
+    /// The parameter name closest to an unknown key (edit distance), if close.
+    pub fn suggest(&self, key: &str) -> Option<&'static str> {
+        let k = key.to_ascii_lowercase();
+        self.spec
+            .params
+            .iter()
+            .map(|p| (edit_distance(&k, &p.key.to_ascii_lowercase()), p.key))
+            .filter(|(d, name)| *d <= 2.max(name.len() / 3))
+            .min_by_key(|(d, _)| *d)
+            .map(|(_, name)| name)
+    }
+
     fn pspec(&self, key: &str) -> &ParamSpec {
         self.spec
             .params
@@ -1067,4 +1086,20 @@ impl<'a> Params<'a> {
             self.id
         )))
     }
+}
+
+/// Levenshtein distance (for "did you mean" hints).
+pub fn edit_distance(a: &str, b: &str) -> usize {
+    let b: Vec<char> = b.chars().collect();
+    let mut prev: Vec<usize> = (0..=b.len()).collect();
+    for (i, ca) in a.chars().enumerate() {
+        let mut cur = vec![i + 1; b.len() + 1];
+        for (j, cb) in b.iter().enumerate() {
+            cur[j + 1] = (prev[j] + usize::from(ca != *cb))
+                .min(prev[j + 1] + 1)
+                .min(cur[j] + 1);
+        }
+        prev = cur;
+    }
+    prev[b.len()]
 }

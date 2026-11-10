@@ -23,6 +23,7 @@ OUT = ROOT / "docs" / "03-user-guide" / "component-reference.md"
 # reproducible, so CI can check that the committed page is up to date.
 REVISIONS = [
     ("A", "2026-11-02", "First release, generated from the v0.5.0 catalog"),
+    ("B", "2026-11-10", "v0.5.1: tank parameter `steady` (hold or solve)"),
 ]
 
 CATEGORY_ORDER = ["Boundaries", "Volumes", "Lines", "Restrictions", "Machines", "Engine"]

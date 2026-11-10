@@ -143,12 +143,16 @@ pub fn parse_str(s: &str, dim: Dim) -> Result<f64> {
     }
     let (d, f, o) =
         unit_info(unit).ok_or_else(|| Error::Parse(format!("unknown unit '{unit}' in '{s}'")))?;
-    if d != dim && dim != Dim::None {
+    if d != dim {
+        let what = |x: Dim| match x {
+            Dim::None => "dimensionless".to_string(),
+            x => format!("{x:?}").to_lowercase(),
+        };
         return Err(Error::Parse(format!(
-            "'{s}': expected a {:?} quantity ({}), got {:?}",
-            dim,
+            "'{s}': expected a {} value ({}), got a {} unit",
+            what(dim),
             dim.si_unit(),
-            d
+            what(d)
         )));
     }
     Ok(val * f + o)

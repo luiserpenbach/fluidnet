@@ -418,7 +418,11 @@ fn tanks_held(
     max_iter: usize,
     st: &mut SteadyStats,
 ) -> Result<Option<Vec<f64>>> {
-    let tanks = net.tank_states();
+    let tanks: Vec<(usize, usize)> = net
+        .tank_states()
+        .into_iter()
+        .filter(|(sp, _)| !net.held_states.iter().any(|(i, _)| i == sp))
+        .collect();
     if tanks.is_empty() {
         return Ok(None);
     }
@@ -472,6 +476,25 @@ pub fn solve(
                 ..Default::default()
             },
         ));
+    }
+    // tanks marked `steady: hold` are reservoirs at their given state
+    if !net.steady_hold_comps.is_empty() {
+        let mut h = net.clone();
+        h.steady_hold_comps.clear();
+        for (sp, nd) in net.tank_states() {
+            if net.nodes[nd]
+                .comp
+                .is_some_and(|c| net.steady_hold_comps.contains(&c))
+            {
+                h.held_states.push((sp, y0[sp]));
+                h.held_states.push((sp + 1, y0[sp + 1]));
+            }
+        }
+        let (mut y, st) = solve(&h, y0, t, max_iter)?;
+        for &(i, v) in &h.held_states {
+            y[i] = v;
+        }
+        return Ok((y, st));
     }
     // cold start: flow states left at zero get a guess from the pump design flows
     let y_user = y0;

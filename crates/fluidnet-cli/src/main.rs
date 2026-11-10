@@ -3,13 +3,45 @@
 //!   fluidnet run MODEL.yaml [--steady] [--out FILE.csv|FILE.json] [--fluids DIR] [--print PATTERN]
 //!   fluidnet check MODEL.yaml          compile only, list nodes, branches and states
 //!   fluidnet catalog                   print the component catalog as JSON
-//!   fluidnet props FLUID P_Pa T_K      property lookup
+//!   fluidnet props FLUID P T           property lookup (P and T with units or SI)
+//!   fluidnet version                   print the version
+//!
+//! Exit codes: 0 success; 1 model, file, solver or fluid error; 2 usage error
+//! or no fluid tables; 3 transient stopped early (results up to the stop are
+//! printed and written).
 
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::Instant;
 
+use fluidnet_core::units::{parse_str, Dim};
 use fluidnet_core::{catalog, run_steady, run_transient, FluidLibrary, Model, Network};
+
+const SUBCOMMANDS: &[&str] = &[
+    "run",
+    "check",
+    "catalog",
+    "props",
+    "version",
+    "bench",
+    "jaccheck",
+    "propsbatch",
+];
+
+/// println! to standard output that ends the program quietly when the reader
+/// has closed the pipe (`fluidnet ... | head`).
+macro_rules! out {
+    ($($arg:tt)*) => {{
+        if let Err(e) = writeln!(std::io::stdout(), $($arg)*) {
+            if e.kind() == std::io::ErrorKind::BrokenPipe {
+                std::process::exit(0);
+            }
+            eprintln!("cannot write to standard output: {e}");
+            std::process::exit(1);
+        }
+    }};
+}
 
 fn find_fluids(explicit: Option<&str>) -> Option<PathBuf> {
     if let Some(p) = explicit {
@@ -33,7 +65,7 @@ fn find_fluids(explicit: Option<&str>) -> Option<PathBuf> {
 
 fn usage() -> ExitCode {
     eprintln!(
-        "usage:\n  fluidnet run MODEL.yaml [--steady] [--out FILE.csv|.json] [--fluids DIR] [--print SUBSTR]\n  fluidnet check MODEL.yaml\n  fluidnet catalog\n  fluidnet props FLUID P[Pa] T[K]"
+        "usage:\n  fluidnet run MODEL.yaml [--steady] [--out FILE.csv|.json] [--fluids DIR] [--print SUBSTR]\n  fluidnet check MODEL.yaml\n  fluidnet catalog\n  fluidnet props FLUID P T      (e.g. N2 \"10 bar\" \"90 K\"; bare numbers are Pa and K)\n  fluidnet version"
     );
     ExitCode::from(2)
 }
@@ -49,8 +81,17 @@ fn fmt_si(v: f64, unit: &str) -> String {
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    if args.is_empty() {
+    if args.is_empty() || !SUBCOMMANDS.contains(&args[0].as_str()) {
+        if let Some(a) = args.first() {
+            if a != "--help" && a != "-h" {
+                eprintln!("unknown subcommand '{a}'");
+            }
+        }
         return usage();
+    }
+    if args[0] == "version" || args.iter().any(|a| a == "--version") {
+        out!("fluidnet {}", fluidnet_core::model::VERSION);
+        return ExitCode::SUCCESS;
     }
     let flag = |name: &str| {
         args.iter()
@@ -61,7 +102,7 @@ fn main() -> ExitCode {
     let has = |name: &str| args.iter().any(|a| a == name);
 
     if args[0] == "catalog" {
-        println!(
+        out!(
             "{}",
             serde_json::to_string_pretty(&catalog::catalog_json()).unwrap()
         );
@@ -86,7 +127,13 @@ fn main() -> ExitCode {
     if args[0] == "propsbatch" {
         // stdin: "P h" per line; stdout: "rho T s a"
         use std::io::BufRead;
-        let fl = lib.get(&args[1]).expect("fluid");
+        let Some(fl) = args.get(1).and_then(|f| lib.get(f)) else {
+            eprintln!(
+                "usage: fluidnet propsbatch FLUID < lines of 'P h' in SI; fluids: {}",
+                lib.keys().join(", ")
+            );
+            return ExitCode::from(2);
+        };
         for line in std::io::stdin().lock().lines().map_while(|l| l.ok()) {
             let v: Vec<f64> = line
                 .split_whitespace()
@@ -94,7 +141,7 @@ fn main() -> ExitCode {
                 .collect();
             if v.len() == 2 {
                 let pr = fl.props_ph(v[0], v[1]);
-                println!("{:.12e} {:.12e} {:.12e} {:.12e}", pr.rho, pr.t, pr.s, pr.a);
+                out!("{:.12e} {:.12e} {:.12e} {:.12e}", pr.rho, pr.t, pr.s, pr.a);
             }
         }
         return ExitCode::SUCCESS;
@@ -106,15 +153,30 @@ fn main() -> ExitCode {
         let fl = match lib.get(&args[1]) {
             Some(f) => f,
             None => {
-                eprintln!("unknown fluid {}", args[1]);
+                eprintln!(
+                    "unknown fluid {} (available: {})",
+                    args[1],
+                    lib.keys().join(", ")
+                );
                 return ExitCode::from(1);
             }
         };
-        let p: f64 = args[2].parse().unwrap_or(1e5);
-        let t: f64 = args[3].parse().unwrap_or(300.0);
+        let (p, t) = match (
+            parse_str(&args[2], Dim::Pressure),
+            parse_str(&args[3], Dim::Temperature),
+        ) {
+            (Ok(p), Ok(t)) => (p, t),
+            (Err(e), _) | (_, Err(e)) => {
+                eprintln!("{e}");
+                return ExitCode::from(2);
+            }
+        };
         match fl.h_pt(p, t) {
-            Ok(h) => println!("{:#?}", fl.props_ph(p, h)),
-            Err(e) => eprintln!("{e}"),
+            Ok(h) => out!("{:#?}", fl.props_ph(p, h)),
+            Err(e) => {
+                eprintln!("{e}");
+                return ExitCode::from(1);
+            }
         }
         return ExitCode::SUCCESS;
     }
@@ -149,7 +211,7 @@ fn main() -> ExitCode {
     }
 
     if args[0] == "check" {
-        println!(
+        out!(
             "{}: {} nodes, {} branches, {} states",
             model.name,
             net.nodes.len(),
@@ -157,8 +219,8 @@ fn main() -> ExitCode {
             net.n_states
         );
         for n in &net.nodes {
-            println!(
-                "  node {:24} fluid {:5} {:?}",
+            out!(
+                "  node {:24} fluid {:5} {}",
                 n.name,
                 net.fluids[n.fluid].key,
                 match &n.kind {
@@ -169,9 +231,11 @@ fn main() -> ExitCode {
             );
         }
         for b in &net.branches {
-            println!(
+            out!(
                 "  branch {:22} {} -> {}",
-                b.name, net.nodes[b.a].name, net.nodes[b.b].name
+                b.name,
+                net.nodes[b.a].name,
+                net.nodes[b.b].name
             );
         }
         return ExitCode::SUCCESS;
@@ -215,7 +279,7 @@ fn main() -> ExitCode {
             pr += fl.props_ph(1e5 + i as f64, 1e5).rho;
         }
         let props_ns = t5.elapsed().as_secs_f64() / 200000.0 * 1e9;
-        println!("{n} states ({} colors, nnz {}, {}): rhs {rhs_us:.1} us, jacobian {jac_us:.1} us, factor {lu_us:.1} us, solve {sol_us:.1} us, props_ph {props_ns:.0} ns ({pr:.0})",
+        out!("{n} states ({} colors, nnz {}, {}): rhs {rhs_us:.1} us, jacobian {jac_us:.1} us, factor {lu_us:.1} us, solve {sol_us:.1} us, props_ph {props_ns:.0} ns ({pr:.0})",
             jb.n_colors(), ls.nnz(), if ls.is_sparse() {"sparse"} else {"dense"});
         return ExitCode::SUCCESS;
     }
@@ -253,12 +317,11 @@ fn main() -> ExitCode {
             }
         }
         if let Some(name) = flag("--probe") {
-            let j = net
-                .state_names
-                .iter()
-                .position(|s| s == name)
-                .expect("state");
-            println!("sweep of {name} (y = {:.9e}):", y[j]);
+            let Some(j) = net.state_names.iter().position(|s| s == name) else {
+                eprintln!("no state '{name}'; states: {}", net.state_names.join(", "));
+                return ExitCode::from(2);
+            };
+            out!("sweep of {name} (y = {:.9e}):", y[j]);
             for e in [-6i32, -4, -2, 0, 1, 2, 3, 4] {
                 let d = 10f64.powi(e)
                     * if net.state_names[j].ends_with(".P") {
@@ -269,14 +332,14 @@ fn main() -> ExitCode {
                 let mut yp = y.clone();
                 yp[j] += d;
                 net.rhs(t, &yp, &mut fp, &mut ev).unwrap();
-                println!(
+                out!(
                     "  d = {d:9.1e}  df/dy for own row = {:.6e}   ({} row)",
                     (fp[j] - f0[j]) / d,
                     net.state_names[j]
                 );
             }
         }
-        println!("{} colors for {n} states; worst rel diff {:.3e} at d({})/d({}): full {:.4e} colored {:.4e}", jb.n_colors(), worst.0, net.state_names[worst.1], net.state_names[worst.2], worst.3, worst.4);
+        out!("{} colors for {n} states; worst rel diff {:.3e} at d({})/d({}): full {:.4e} colored {:.4e}", jb.n_colors(), worst.0, net.state_names[worst.1], net.state_names[worst.2], worst.3, worst.4);
         return ExitCode::SUCCESS;
     }
     if args[0] != "run" {
@@ -328,7 +391,7 @@ fn main() -> ExitCode {
         };
         if show && !c.name.contains(".n") && !c.name.contains(".s") || show && pat.is_some() {
             if let Some(v) = c.data.last() {
-                println!("  {:28} {}", c.name, fmt_si(*v, c.unit));
+                out!("  {:28} {}", c.name, fmt_si(*v, c.unit));
             }
         }
     }
@@ -343,6 +406,9 @@ fn main() -> ExitCode {
             return ExitCode::from(1);
         }
         eprintln!("  wrote {out}");
+    }
+    if res.error.is_some() {
+        return ExitCode::from(3);
     }
     ExitCode::SUCCESS
 }

@@ -65,6 +65,7 @@ impl Network {
     /// Compile a model into a network.
     pub fn compile(model: &Model, lib: &FluidLibrary) -> Result<Network> {
         let mut warnings = Vec::new();
+        let mut steady_hold_comps: Vec<usize> = Vec::new();
         let defs = &model.components;
         if defs.is_empty() {
             return Err(Error::Model("model has no components".into()));
@@ -80,8 +81,24 @@ impl Network {
                 return Err(Error::Model(format!("duplicate component id '{}'", c.id)));
             }
             let p = Params::new(&c.id, &c.kind, &c.params)?;
-            for k in p.unknown_keys() {
-                warnings.push(format!("{}: unknown parameter '{k}' ignored", c.id));
+            if let Some(k) = p.unknown_keys().first() {
+                let hint = match p.suggest(k) {
+                    Some(s) => format!("; did you mean '{s}'?"),
+                    None => format!(
+                        "; parameters of a {} are: {}",
+                        c.kind,
+                        p.spec
+                            .params
+                            .iter()
+                            .map(|q| q.key)
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ),
+                };
+                return Err(Error::Model(format!(
+                    "{}: unknown parameter '{k}'{hint}",
+                    c.id
+                )));
             }
             params.push(p);
         }
@@ -377,6 +394,16 @@ impl Network {
                         }
                         let mut heat = vec![];
                         if p.spec.kind == "tank" {
+                            match p.str_opt("steady").as_deref() {
+                                None | Some("hold") => steady_hold_comps.push(ci),
+                                Some("solve") => {}
+                                Some(o) => {
+                                    return Err(Error::Model(format!(
+                                        "{}: steady must be hold or solve, got '{o}'",
+                                        p.id
+                                    )))
+                                }
+                            }
                             let q = p.sched("Q")?;
                             breakpoints.extend(q.breakpoints());
                             if !matches!(q, Schedule::Const(c) if c == 0.0) {
@@ -1047,7 +1074,10 @@ impl Network {
             if let Some(f) = req {
                 let r = ufn.find(i);
                 match region_fluid.get(&r) {
-                    Some((g, who)) if !g.eq_ignore_ascii_case(f) => {
+                    Some((g, who))
+                        if !g.eq_ignore_ascii_case(f)
+                            && !matches!((lib.get(g), lib.get(f)), (Some(a), Some(b)) if Arc::ptr_eq(&a, &b)) =>
+                    {
                         return Err(Error::Model(format!(
                             "fluid conflict: {} uses {f} but is connected to {who} using {g}",
                             nodes[i].name
@@ -1475,6 +1505,7 @@ impl Network {
             actuators,
             latch_active: true,
             held_states: vec![],
+            steady_hold_comps,
             comps,
             n_states,
             state_kind,

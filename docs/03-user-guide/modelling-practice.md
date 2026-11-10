@@ -1,6 +1,6 @@
 # Modelling practice and troubleshooting
 
-FNT-USR-HBK-006 · Rev A · Released · 2026-11-02 · Owner: Luis Erpenbach
+FNT-USR-HBK-006 · Rev B · Released · 2026-11-10 · Owner: Luis Erpenbach
 
 ## Purpose
 
@@ -159,12 +159,16 @@ Practical rules:
    steady state is the design point; `examples/rl10a33a_start.yaml` sets
    `steady_time: 4.0`, which takes the transient settling path (45 s with
    v0.5.0).
-2. **Systems without a steady state.** A closed tank that keeps filling, or a
-   system whose inputs never balance, has no steady state.
-   `examples/regulated_pressurization.yaml` fails at t = 0 s because the
-   draw-off valve is closed and the regulator keeps filling the ullage; the
-   validation test skips its steady state for this reason. Solve such models as
-   transients.
+2. **Tanks.** In a steady-state solve a tank is a reservoir: it stays at its
+   initial state (`P0`, `T0`, or the warm-start state) and the rest of the
+   network is solved around it (`steady: hold`, the default from v0.5.1). This
+   is what a propellant or pressurant tank is on the time scale of the lines,
+   and it gives a steady state for systems that would otherwise drain or fill
+   (`examples/gn2_blowdown.yaml`, `examples/regulated_pressurization.yaml`). A
+   tank that is a plenum whose pressure should follow from the flow balance (a
+   volume between a regulator and a vent, `tests_models/regulator.yaml`) is
+   given `steady: solve`. A system whose inputs never balance with all
+   `solve` volumes has no steady state; solve it as a transient.
 3. **Oscillating systems.** If the network has an unstable mode (feed-system
    coupling, a regulator with a narrow band) the steady state may exist but the
    time-marching paths do not settle. Run the transient and look at the
@@ -189,7 +193,7 @@ Practical rules:
 When it fails, the error names the largest residual:
 
 ```
-solver error: steady state did not converge (residual 1.674e5, largest in press_line.n2.P). The system may have no steady state (e.g. a closed tank that keeps filling) or may oscillate.
+solver error: steady state did not converge (residual 1.3e3, largest in line.s3.mdot). The system may have no steady state (e.g. a closed tank that keeps filling) or may oscillate.
 ```
 
 Then:
@@ -331,12 +335,9 @@ What drives the cost:
 
 ## 8. Reading warnings and errors
 
-**Warnings.** In v0.5.0 the compiler issues one kind of warning:
-`X: unknown parameter 'k' ignored`. It almost always means a misspelt
-parameter whose intended value is not used (making it an error is open item
-OI-017 in [open items](../01-project/open-items.md)). Unknown keys in `simulation` and
-at the top level produce no warning; misspelt simulation settings silently
-take their defaults.
+**Warnings.** The compiler warns when a wall element lies between two
+boundaries (its heat leaves the model). Misspelt parameters and keys are
+errors from v0.5.1, with the closest valid name suggested.
 
 **Model errors** (`model error: ...`, at compile time) name the component and
 the parameter or connection; the most frequent are:
@@ -389,3 +390,4 @@ scripts before using the last values.
 | Rev | Date | Change |
 |---|---|---|
 | A | 2026-11-02 | First release |
+| B | 2026-11-10 | v0.5.1: tanks are held in steady-state solves by default (`steady: hold`/`solve`); unknown parameters are errors |

@@ -380,6 +380,8 @@ pub struct Network {
     /// States held at a value (steady-state fallback with tanks held at their
     /// initial state): their rate becomes (value - y) / 1 ms.
     pub held_states: Vec<(usize, f64)>,
+    /// Components (tanks) held at their initial state in steady-state solves.
+    pub steady_hold_comps: Vec<usize>,
     pub comps: Vec<CompInfo>,
     pub n_states: usize,
     pub state_kind: Vec<StateKind>,

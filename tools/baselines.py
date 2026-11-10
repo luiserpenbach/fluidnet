@@ -39,7 +39,6 @@ ATOL = 1e-9
 
 # Runs that are excluded, with the reason (see docs/03-user-guide/examples.md).
 SKIP = {
-    ("regulated_pressurization", "steady"): "no steady state at t = 0 by design",
     ("t_heated_pipe", "transient"): "model is meant for the steady state only (OI-029)",
     ("rl10a33a_start", "steady"): "45 s solve; covered by the transient and by cargo test",
 }

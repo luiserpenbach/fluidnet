@@ -1,6 +1,6 @@
 # Transient and steady-state solvers
 
-FNT-SLV-DOC-002 · Rev A · Released · 2026-11-02 · Owner: Luis Erpenbach
+FNT-SLV-DOC-002 · Rev B · Released · 2026-11-10 · Owner: Luis Erpenbach
 
 ## Scope
 
@@ -292,6 +292,17 @@ units per second, for example a tank draining through the leakage of a closed
 valve over days. The method is then reported as
 "pseudo-transient (quasi-steady)".
 
+**Tanks.** A tank with `steady: hold` (the default) is a reservoir in a
+steady-state solve: `steady::solve` adds its two states to
+`Network::held_states`, whose rates are replaced by (value − y)/1 ms, so the
+states stay at the initial or warm-start values and the rest of the network is
+solved around them. A tank with `steady: solve` keeps its balance equations.
+If the solve of a network with `solve` tanks fails, `tanks_held` repeats it
+with those tanks held and accepts the result when no tank's relative mass rate
+exceeds 1×10⁻⁴ 1/s (method "tanks held at their initial state, quasi-steady").
+Before v0.5.1 all tanks were solved; a tank behind a closed, leaking valve then
+converged only for some initial states, which differed between platforms.
+
 **Dead-end volumes.** A volume without through-flow has no equation that fixes
 its enthalpy at steady state. Pseudo-transient continuation, whose matrix
 I/τ − J stays regular, leaves such states at their initial values.
@@ -368,9 +379,10 @@ succeeded, for example `newton`, `pseudo-transient`,
 
 ## Verification
 
-- Every example runs as a transient and, except
-  `regulated_pressurization.yaml`, as a steady state:
+- Every example runs as a transient and as a steady state:
   `all_examples_run_steady_and_transient`.
+- A tank behind a closed valve gives the same steady state for perturbed
+  initial states: `closed_tank_steady_state_is_robust_to_small_perturbations`.
 - The expander start transient ends within 0.3 % of the steady solution in
   P_c, thrust, shaft speed and O/F: `expander_start_reaches_the_steady_design_point`.
   This checks that the transient and steady solvers agree on the same
@@ -418,3 +430,4 @@ succeeded, for example `newton`, `pseudo-transient`,
 | Rev | Date | Change |
 |---|---|---|
 | A | 2026-11-02 | First release |
+| B | 2026-11-10 | v0.5.1: tanks held in steady-state solves; tanks-held quasi-steady fallback |
