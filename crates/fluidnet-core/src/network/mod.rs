@@ -6,6 +6,7 @@
 //!   * shafts: angular speed
 //!   * walls with heat capacity: temperature
 //!   * combustion chambers: pressure and oxidizer mass fraction of the gas
+//!
 //! Algebraic (quasi-steady) elements: orifices, valves, check valves,
 //! regulators, fittings, mass-flow sources, turbines.
 //!
@@ -504,9 +505,9 @@ impl Network {
                 BranchKind::Restriction { cda, ctrl, .. } => {
                     let u = match ctrl {
                         Ctrl::Fixed | Ctrl::Check { .. } | Ctrl::Regulator { .. } => 1.0,
-                        Ctrl::Valve { opening, charac, .. } => {
-                            charac_eval(*charac, opening.at(t).clamp(0.0, 1.0))
-                        }
+                        Ctrl::Valve {
+                            opening, charac, ..
+                        } => charac_eval(*charac, opening.at(t).clamp(0.0, 1.0)),
                         Ctrl::Actuated { act, charac, .. } => {
                             charac_eval(*charac, y[self.actuators[*act].state].clamp(0.0, 1.0))
                         }
@@ -552,7 +553,9 @@ impl Network {
         }
         let mut out = Vec::new();
         for (k, b) in self.branches.iter().enumerate() {
-            if let (BranchKind::Pipe { sm, .. } | BranchKind::Pump { sm, .. }, Some(v)) = (&b.kind, g[k]) {
+            if let (BranchKind::Pipe { sm, .. } | BranchKind::Pump { sm, .. }, Some(v)) =
+                (&b.kind, g[k])
+            {
                 if v.is_finite() {
                     out.push((*sm, v));
                 }
@@ -999,7 +1002,11 @@ impl Network {
             let target = self.actuator_target(a, ev);
             let mut d = (target - u) / a.tau;
             if a.latch && self.latch_active {
-                d = if a.u_hi >= a.u_lo { d.max(0.0) } else { d.min(0.0) };
+                d = if a.u_hi >= a.u_lo {
+                    d.max(0.0)
+                } else {
+                    d.min(0.0)
+                };
             }
             dy[a.state] = d;
         }

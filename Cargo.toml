@@ -6,10 +6,20 @@ default-members = ["crates/fluidnet-core", "crates/fluidnet-cli"]
 [workspace.package]
 version = "0.5.0"
 edition = "2021"
-license = "MIT"
+license = "LicenseRef-Proprietary"
+publish = false
 
 [profile.release]
 opt-level = 3
 lto = true
 codegen-units = 1
 debug = false
+
+# Lints for all crates. Allowed lints are intentional patterns:
+# `!(x > y)` comparisons are NaN-safe guards; index loops mirror the equations;
+# solver entry points take many arguments by design.
+[workspace.lints.clippy]
+neg_cmp_op_on_partial_ord = "allow"
+needless_range_loop = "allow"
+too_many_arguments = "allow"
+large_enum_variant = "allow"

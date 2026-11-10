@@ -230,7 +230,11 @@ fn pressure_actuated_valves_follow_and_latch() {
     // on a ramp a first-order lag of 20 ms trails the command by 20 ms
     let p = at("upstream.P", 0.48);
     let cmd = ((p - 4e5) / 2e5).clamp(0.0, 1.0);
-    assert!((at("v_free.opening", 0.5) - cmd).abs() < 0.03, "{} vs {cmd}", at("v_free.opening", 0.5));
+    assert!(
+        (at("v_free.opening", 0.5) - cmd).abs() < 0.03,
+        "{} vs {cmd}",
+        at("v_free.opening", 0.5)
+    );
 }
 
 /// RL10A-3-3A at test point 1 of NASA CR-190786 (the calibration point):
@@ -274,7 +278,10 @@ fn rl10a33a_start_accelerates_to_mainstage() {
     let r = run("examples/rl10a33a_start.yaml", Mode::Transient);
     let psi = 6894.757293;
     let pc = r.channel("tca.Pc").unwrap();
-    let i = pc.iter().position(|&p| p >= 200.0 * psi).expect("reaches 200 psia");
+    let i = pc
+        .iter()
+        .position(|&p| p >= 200.0 * psi)
+        .expect("reaches 200 psia");
     let tta = r.time[i];
     assert!((1.0..=2.56).contains(&tta), "time to accelerate {tta}");
     assert!(rel(*pc.last().unwrap(), 472.35 * psi) < 0.005);

@@ -4,6 +4,7 @@ description = "Python bindings for fluidnet"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+publish.workspace = true
 
 [lib]
 name = "_core"
@@ -13,3 +14,6 @@ crate-type = ["cdylib"]
 fluidnet-core = { path = "../fluidnet-core" }
 serde_json = "1"
 pyo3 = { version = "0.22", features = ["extension-module", "abi3-py38"] }
+
+[lints]
+workspace = true

@@ -601,8 +601,8 @@ impl Network {
                                 Some("temperature") => false,
                                 Some(o) => {
                                     return Err(Error::Model(format!(
-                                        "{id}: hot_driving must be enthalpy or temperature, got '{o}'"
-                                    )))
+                                    "{id}: hot_driving must be enthalpy or temperature, got '{o}'"
+                                )))
                                 }
                             };
                             HotSide::Chamber {
@@ -644,7 +644,11 @@ impl Network {
                         let contour = p.sched_opt("hot_contour")?;
                         let npos = chain.len();
                         let eps_at = |pos: usize| -> f64 {
-                            let x = if npos > 1 { pos as f64 / (npos - 1) as f64 } else { 0.5 };
+                            let x = if npos > 1 {
+                                pos as f64 / (npos - 1) as f64
+                            } else {
+                                0.5
+                            };
                             match (&contour, &hot) {
                                 (Some(c), _) => c.at(x).max(1.0),
                                 (None, HotSide::Chamber { contraction, .. }) => *contraction,
@@ -652,14 +656,24 @@ impl Network {
                             }
                         };
                         let weight = |pos: usize| -> f64 {
-                            share(pos).0 * if contour.is_some() { eps_at(pos).sqrt() } else { 1.0 }
+                            share(pos).0
+                                * if contour.is_some() {
+                                    eps_at(pos).sqrt()
+                                } else {
+                                    1.0
+                                }
                         };
                         let wsum: f64 = (0..npos).map(weight).sum();
                         for (pos, &nd) in chain.iter().enumerate() {
                             let (f, brs) = share(pos);
                             let hot_share = weight(pos) / wsum.max(1e-300);
                             let hot_local = match &hot {
-                                HotSide::Chamber { ch, factor, enthalpy, .. } => HotSide::Chamber {
+                                HotSide::Chamber {
+                                    ch,
+                                    factor,
+                                    enthalpy,
+                                    ..
+                                } => HotSide::Chamber {
                                     ch: *ch,
                                     contraction: eps_at(pos),
                                     factor: *factor,
@@ -891,13 +905,12 @@ impl Network {
                                 Some(h) => h.at(phi),
                                 None => a + (1.0 - a) * phi * phi.abs(),
                             };
-                            let mut pts: Vec<(f64, f64)> = e
-                                .x
-                                .iter()
-                                .zip(&e.y)
-                                .filter(|(phi, eta)| **phi > 0.0 && **eta > 0.05)
-                                .map(|(phi, eta)| (*phi, phi * psi(*phi) / eta))
-                                .collect();
+                            let mut pts: Vec<(f64, f64)> =
+                                e.x.iter()
+                                    .zip(&e.y)
+                                    .filter(|(phi, eta)| **phi > 0.0 && **eta > 0.05)
+                                    .map(|(phi, eta)| (*phi, phi * psi(*phi) / eta))
+                                    .collect();
                             if pts.iter().all(|pt| pt.0 > 1e-9) {
                                 pts.push((0.0, p0));
                             }
@@ -959,7 +972,10 @@ impl Network {
                                         None => None,
                                         Some(c) => {
                                             let mut pts: Vec<(f64, f64)> =
-                                                c.x.iter().copied().zip(c.y.iter().copied()).collect();
+                                                c.x.iter()
+                                                    .copied()
+                                                    .zip(c.y.iter().copied())
+                                                    .collect();
                                             if pts.iter().all(|pt| pt.0.abs() > 1e-9) {
                                                 pts.push((0.0, 0.0));
                                             }
@@ -1628,7 +1644,9 @@ struct PendingAct {
 
 /// Turbine area map: [[PR, u/c0, factor], ...].
 fn area_map_param(p: &Params) -> Result<Option<crate::machines::AreaMap>> {
-    let bad = || Error::Model(format!("{}.area_map: give rows [PR, u/c0, factor] with two or more velocity ratios per pressure ratio", p.id));
+    let bad = || {
+        Error::Model(format!("{}.area_map: give rows [PR, u/c0, factor] with two or more velocity ratios per pressure ratio", p.id))
+    };
     let v = match p.raw("area_map") {
         None => return Ok(None),
         Some(v) => v,
@@ -1637,13 +1655,20 @@ fn area_map_param(p: &Params) -> Result<Option<crate::machines::AreaMap>> {
     let mut out = Vec::with_capacity(rows.len());
     for r in rows {
         let r = r.as_array().ok_or_else(bad)?;
-        let num = |i: usize| r.get(i).and_then(|x| x.as_f64().or_else(|| x.as_str().and_then(|s| s.trim().parse().ok())));
+        let num = |i: usize| {
+            r.get(i).and_then(|x| {
+                x.as_f64()
+                    .or_else(|| x.as_str().and_then(|s| s.trim().parse().ok()))
+            })
+        };
         match (r.len(), num(0), num(1), num(2)) {
             (3, Some(a), Some(b), Some(c)) if a > 0.0 && c > 0.0 => out.push((a, b, c)),
             _ => return Err(bad()),
         }
     }
-    crate::machines::AreaMap::new(&out).map(Some).ok_or_else(bad)
+    crate::machines::AreaMap::new(&out)
+        .map(Some)
+        .ok_or_else(bad)
 }
 
 /// A [[x, y], ...] table parameter as a curve (None when absent).
@@ -1656,6 +1681,8 @@ fn curve_param(p: &Params, key: &str) -> Result<Option<Curve>> {
         ))),
         Some(Schedule::Table { t, v, .. }) => Curve::new(t.into_iter().zip(v).collect())
             .map(Some)
-            .ok_or_else(|| Error::Model(format!("{}.{key}: needs two or more distinct points", p.id))),
+            .ok_or_else(|| {
+                Error::Model(format!("{}.{key}: needs two or more distinct points", p.id))
+            }),
     }
 }

@@ -6,6 +6,7 @@
 //!    implicit-Euler steps in pseudo time tau, grown geometrically and by
 //!    switched evolution relaxation, so stiff and oscillatory (acoustic) modes
 //!    are damped and the iteration becomes Newton's method as tau -> infinity.
+//!
 //! Dead-end volumes simply keep their initial state.
 
 use crate::error::{Error, Result};
@@ -303,9 +304,8 @@ fn settle(net: &Network, y0: &[f64], t: f64) -> Option<Vec<f64>> {
         if debug {
             eprintln!("steady: transient 0..{t} s: {:?}", r.as_ref().err());
         }
-        match (r, last) {
-            (Ok(_), Some(yy)) => y = yy,
-            _ => {}
+        if let (Ok(_), Some(yy)) = (r, last) {
+            y = yy;
         }
     }
     let opts = TransientOptions {
@@ -333,7 +333,10 @@ fn settle(net: &Network, y0: &[f64], t: f64) -> Option<Vec<f64>> {
         true
     });
     if debug {
-        eprintln!("steady: transient settling ended at t = {t_last:.3} s: {:?}", r.as_ref().err());
+        eprintln!(
+            "steady: transient settling ended at t = {t_last:.3} s: {:?}",
+            r.as_ref().err()
+        );
     }
     last
 }

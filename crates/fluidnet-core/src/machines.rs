@@ -151,7 +151,11 @@ impl AreaMap {
         prs.dedup_by(|a, b| (*a - *b).abs() < 1e-12);
         let mut curves = Vec::new();
         for &pr in &prs {
-            let pts: Vec<(f64, f64)> = rows.iter().filter(|r| (r.0 - pr).abs() < 1e-12).map(|r| (r.1, r.2)).collect();
+            let pts: Vec<(f64, f64)> = rows
+                .iter()
+                .filter(|r| (r.0 - pr).abs() < 1e-12)
+                .map(|r| (r.1, r.2))
+                .collect();
             curves.push(Curve::new(pts)?);
         }
         if curves.is_empty() {
@@ -182,7 +186,11 @@ impl TurbineMap {
             None => 1.0,
             Some(a) => {
                 let c0 = (2.0 * dh_s.max(0.0)).sqrt();
-                let x = if c0 > 1e-9 { (w * self.r_m / c0).abs() } else { 0.0 };
+                let x = if c0 > 1e-9 {
+                    (w * self.r_m / c0).abs()
+                } else {
+                    0.0
+                };
                 a.at(x, pr)
             }
         }
@@ -306,6 +314,11 @@ impl Material {
     }
 }
 
+fn smooth01(x: f64) -> f64 {
+    let t = x.clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -342,8 +355,8 @@ mod tests {
             eff: None,
             area: None,
         };
-        let dh = 2e5;
-        let c0 = (2.0 * dh as f64).sqrt();
+        let dh: f64 = 2e5;
+        let c0 = (2.0 * dh).sqrt();
         let (_, _, eff, _) = t.eval(0.4 * c0 / 0.05, 1.0, dh);
         assert!((eff - 0.6).abs() < 1e-12);
         let (tq, _, _, _) = t.eval(0.8 * c0 / 0.05, 1.0, dh);
@@ -366,40 +379,102 @@ mod tests {
         let phis: Vec<f64> = (0..=30).map(|i| i as f64 * 0.05).collect();
         let head = Curve::new(phis.iter().map(|&f| (f, a + (1.0 - a) * f * f)).collect()).unwrap();
         let power = Curve::new(phis.iter().map(|&f| (f, p0 + (1.0 - p0) * f)).collect()).unwrap();
-        let base = PumpMap { w_d: 3000.0, q_d: 0.01, h_d: 500.0, eta_d: 0.6, a, p0, head: None, power: None, speed: None };
-        let tab = PumpMap { head: Some(head), power: Some(power), ..base.clone() };
+        let base = PumpMap {
+            w_d: 3000.0,
+            q_d: 0.01,
+            h_d: 500.0,
+            eta_d: 0.6,
+            a,
+            p0,
+            head: None,
+            power: None,
+            speed: None,
+        };
+        let tab = PumpMap {
+            head: Some(head),
+            power: Some(power),
+            ..base.clone()
+        };
         for &(w, m) in &[(3000.0, 10.0), (2400.0, 7.0), (3300.0, 13.0)] {
             let (g, t) = (base.eval(w, m, 1000.0), tab.eval(w, m, 1000.0));
             assert!((g.dp - t.dp).abs() < 1e-3 * g.dp.abs(), "{} {}", g.dp, t.dp);
-            assert!((g.power - t.power).abs() < 2e-3 * g.power.abs(), "{} {}", g.power, t.power);
+            assert!(
+                (g.power - t.power).abs() < 2e-3 * g.power.abs(),
+                "{} {}",
+                g.power,
+                t.power
+            );
         }
         let xd = 0.35;
         let xs: Vec<f64> = (1..=80).map(|i| i as f64 * 0.01).collect();
-        let eff = Curve::new(xs.iter().map(|&x| (x, 2.0 * x / xd * (1.0 - x / (2.0 * xd)))).collect());
-        let tb = TurbineMap { r_m: 0.07, eta_d: 0.62, x_d: xd, eff: None, area: None };
-        let tt = TurbineMap { eff: eff.map(|c| {
-            let mut pts: Vec<(f64, f64)> = c.x.iter().copied().zip(c.y.iter().copied()).collect();
-            pts.push((0.0, 0.0));
-            Curve::new(pts).unwrap()
-        }), ..tb.clone() };
+        let eff = Curve::new(
+            xs.iter()
+                .map(|&x| (x, 2.0 * x / xd * (1.0 - x / (2.0 * xd))))
+                .collect(),
+        );
+        let tb = TurbineMap {
+            r_m: 0.07,
+            eta_d: 0.62,
+            x_d: xd,
+            eff: None,
+            area: None,
+        };
+        let tt = TurbineMap {
+            eff: eff.map(|c| {
+                let mut pts: Vec<(f64, f64)> =
+                    c.x.iter().copied().zip(c.y.iter().copied()).collect();
+                pts.push((0.0, 0.0));
+                Curve::new(pts).unwrap()
+            }),
+            ..tb.clone()
+        };
         for &w in &[0.0, 1000.0, 3000.0, 5000.0] {
             let (a1, _, _, _) = tb.eval(w, 2.0, 2e5);
             let (a2, _, _, _) = tt.eval(w, 2.0, 2e5);
             // piecewise-linear table: the stall torque uses the first segment's slope
             let tol = if w == 0.0 { 0.02 } else { 1e-3 };
-            assert!((a1 - a2).abs() < tol * a1.abs().max(1.0), "w {w}: {a1} {a2}");
+            assert!(
+                (a1 - a2).abs() < tol * a1.abs().max(1.0),
+                "w {w}: {a1} {a2}"
+            );
         }
     }
 
     #[test]
     fn speed_correction_divides_torque() {
-        let sc = Curve::new(vec![(0.0, 0.0), (0.2, 0.5), (0.5, 0.8), (1.0, 1.0), (1.5, 1.0)]).unwrap();
-        let base = PumpMap { w_d: 3000.0, q_d: 0.01, h_d: 500.0, eta_d: 0.6, a: 1.15, p0: 0.45, head: None, power: None, speed: None };
-        let cor = PumpMap { speed: Some(sc), ..base.clone() };
+        let sc = Curve::new(vec![
+            (0.0, 0.0),
+            (0.2, 0.5),
+            (0.5, 0.8),
+            (1.0, 1.0),
+            (1.5, 1.0),
+        ])
+        .unwrap();
+        let base = PumpMap {
+            w_d: 3000.0,
+            q_d: 0.01,
+            h_d: 500.0,
+            eta_d: 0.6,
+            a: 1.15,
+            p0: 0.45,
+            head: None,
+            power: None,
+            speed: None,
+        };
+        let cor = PumpMap {
+            speed: Some(sc),
+            ..base.clone()
+        };
         // design speed: unchanged; half speed: efficiency x 0.8, torque / 0.8, head unchanged
-        let (b1, c1) = (base.eval(3000.0, 10.0, 1000.0), cor.eval(3000.0, 10.0, 1000.0));
+        let (b1, c1) = (
+            base.eval(3000.0, 10.0, 1000.0),
+            cor.eval(3000.0, 10.0, 1000.0),
+        );
         assert!((b1.torque - c1.torque).abs() < 1e-9 * b1.torque);
-        let (b2, c2) = (base.eval(1500.0, 5.0, 1000.0), cor.eval(1500.0, 5.0, 1000.0));
+        let (b2, c2) = (
+            base.eval(1500.0, 5.0, 1000.0),
+            cor.eval(1500.0, 5.0, 1000.0),
+        );
         assert!((c2.torque - b2.torque / 0.8).abs() < 1e-9 * b2.torque);
         assert!((c2.eff - 0.8 * b2.eff).abs() < 1e-9);
         assert_eq!(b2.dp, c2.dp);
@@ -413,16 +488,16 @@ mod tests {
 
     #[test]
     fn turbine_area_map_bilinear_and_held() {
-        let rows = [(1.2, 0.1, 1.2), (1.2, 0.5, 1.0), (2.0, 0.1, 1.4), (2.0, 0.5, 1.2)];
+        let rows = [
+            (1.2, 0.1, 1.2),
+            (1.2, 0.5, 1.0),
+            (2.0, 0.1, 1.4),
+            (2.0, 0.5, 1.2),
+        ];
         let a = AreaMap::new(&rows).unwrap();
         assert!((a.at(0.3, 1.2) - 1.1).abs() < 1e-12);
         assert!((a.at(0.3, 1.6) - 1.2).abs() < 1e-12);
         assert!((a.at(0.0, 1.0) - 1.2).abs() < 1e-12);
         assert!((a.at(0.9, 3.0) - 1.2).abs() < 1e-12);
     }
-}
-
-fn smooth01(x: f64) -> f64 {
-    let t = x.clamp(0.0, 1.0);
-    t * t * (3.0 - 2.0 * t)
 }

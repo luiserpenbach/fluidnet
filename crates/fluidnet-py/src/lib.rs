@@ -1,6 +1,9 @@
 //! Python bindings: `fluidnet._core`. The pure-Python package `fluidnet` wraps
 //! these functions with numpy arrays and a small results class.
 
+// pyo3's #[pyfunction] expansion triggers this lint on PyResult signatures.
+#![allow(clippy::useless_conversion)]
+
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Mutex;

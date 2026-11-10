@@ -9,7 +9,7 @@ description = "Fluid network and engine-cycle simulation: transient and steady s
 requires-python = ">=3.8"
 dependencies = ["numpy"]
 optional-dependencies = { plot = ["matplotlib"], pandas = ["pandas"] }
-license = { text = "MIT" }
+license = { text = "Proprietary. Copyright Luis Erpenbach. All rights reserved." }
 
 [tool.maturin]
 manifest-path = "crates/fluidnet-py/Cargo.toml"
