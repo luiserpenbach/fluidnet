@@ -2,7 +2,8 @@
 // (no <html>/<head>/<body> wrapper), next to fluidnet.wasm and fluids/*.bin.
 import fs from 'fs';
 import path from 'path';
-const ui = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+import { fileURLToPath } from 'url';
+const ui = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const out = process.argv[2] ?? path.join(ui, 'artifact');
 fs.mkdirSync(path.join(out, 'fluids'), { recursive: true });
 const js = fs.readFileSync(path.join(ui, 'dist/app.js'), 'utf8').replace(/<\/script/gi, '<\\/script');

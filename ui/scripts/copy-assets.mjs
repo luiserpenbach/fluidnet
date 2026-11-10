@@ -2,7 +2,8 @@
 import fs from 'fs';
 import zlib from 'zlib';
 import path from 'path';
-const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', '..');
+import { fileURLToPath } from 'url';
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const wasm = path.join(root, 'target/wasm32-unknown-unknown/release/fluidnet_wasm.wasm');
 const pub = path.join(root, 'ui/public');
 fs.mkdirSync(path.join(pub, 'fluids'), { recursive: true });
