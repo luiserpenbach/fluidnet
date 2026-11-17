@@ -115,7 +115,7 @@ components:
   diameter: 35.3704 mm
 - id: tca
   type: combustion_chamber
-  area_ratio: 100.0
+  area_ratio: 164.6
   cf_eff: 0.975
   cstar_eff: 0.985
   ignition_ramp: 50 ms

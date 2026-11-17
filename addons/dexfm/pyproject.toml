@@ -1,6 +1,6 @@
 [project]
 name = "dexfm"
-version = "0.2.2"
+version = "0.2.3"
 description = "Foundation model for a dual expander hydrogen/oxygen rocket engine: cycle, thrust chamber cooling, turbopumps, throttle and start"
 requires-python = ">=3.10"
 dependencies = ["numpy", "scipy", "CoolProp", "cantera", "pydantic>=2", "pyyaml", "plotly"]

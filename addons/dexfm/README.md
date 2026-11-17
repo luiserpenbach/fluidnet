@@ -38,13 +38,13 @@ and the study runners; anything else is flagged as an assumption in the document
 
 ## fluidnet coupling (v0.2)
 
-With `fluidnet` (0.5.0 or 0.5.1, tested with both) installed, `python -m dexfm run` also generates a fluidnet model of
+With `fluidnet` installed (this repository at or after the exit Mach fix, pull request #2), `python -m dexfm run` also generates a fluidnet model of
 one powerpack from the design point, calibrates it to that point (`fluidnet_model.calibrate`), writes
 `<name>_powerpack_fluidnet.yaml` and `<name>_start_fluidnet.yaml`, and runs the tank-head start
 (`fluidnet_model.DEFAULT_START`). Both YAML files open directly in the fluidnet CLI and web editor.
-The generated model caps the nozzle area ratio at 100 (fluidnet 0.5.0 and 0.5.1 thrust is wrong above that)
-and keeps valves cracked at t = 0 (a valve opening from its leak area against trapped liquid stalls
-the integrator).
+The start sequences keep valves cracked at t = 0 (a valve opening from its leak area against trapped
+liquid stalls the integrator). fluidnet expands the nozzle with one isentropic exponent, so at the
+baseline area ratio of 165 its thrust is about 3 % above the dexfm value; the cycle is unaffected.
 
 ## h2cea coupling (v0.2.1)
 

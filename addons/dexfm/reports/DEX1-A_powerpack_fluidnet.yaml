@@ -26,13 +26,13 @@ components:
   opening: 1.0
 - id: jacket_h2_in
   type: junction
-  P0: 2.5 bar
-  T0: 250.0 K
+  P0: 105.6 bar
+  T0: 60 K
   volume: 0.3 L
 - id: jacket_h2
   type: pipe
-  P0: 2.5 bar
-  T0: 250.0 K
+  P0: 93.8 bar
+  T0: 125 K
   cool_area_factor: 1.6
   cool_correction: 0.55
   diameter: 1.7890 mm
@@ -72,14 +72,14 @@ components:
   parallel: 394
   roughness: 6 um
   segments: 10
-  wall_T0: 250.0 K
+  wall_T0: 400 K
   wall_mass_factor: 3.0
   wall_material: grcop42
   wall_thickness: 0.8 mm
 - id: fturb_in
   type: junction
-  P0: 2.5 bar
-  T0: 250.0 K
+  P0: 93.8 bar
+  T0: 174 K
   volume: 0.5 L
 - id: fuel_turbine
   type: turbine
@@ -96,8 +96,8 @@ components:
   opening: 1.0
 - id: fturb_out
   type: junction
-  P0: 1 bar
-  T0: 250.0 K
+  P0: 59.2 bar
+  T0: 161 K
   volume: 0.8 L
 - id: fuel_injector
   type: orifice
@@ -105,14 +105,15 @@ components:
   diameter: 35.3704 mm
 - id: tca
   type: combustion_chamber
-  area_ratio: 100.0
+  P0: 50.0 bar
+  area_ratio: 164.6
   cf_eff: 0.975
   cstar_eff: 0.985
   l_star: 2.0 m
   throat_area: 91.1577 cm2
 - id: fuel_shaft
   type: shaft
-  N0: 0 rpm
+  N0: 106412 rpm
   bearing_torque: 0.05 N m
   inertia: 5.0e-4 kg m2
   viscous_loss: 0.00015449
@@ -141,13 +142,13 @@ components:
   opening: 1.0
 - id: lox_split
   type: junction
-  P0: 1 bar
-  T0: 250.0 K
+  P0: 86.8 bar
+  T0: 100 K
   volume: 0.3 L
 - id: jacket_o2
   type: pipe
-  P0: 1 bar
-  T0: 250.0 K
+  P0: 81.3 bar
+  T0: 207 K
   cool_area_factor: 1.6
   cool_correction: 0.3
   diameter: 1.9767 mm
@@ -187,14 +188,14 @@ components:
   parallel: 540
   roughness: 6 um
   segments: 8
-  wall_T0: 250.0 K
+  wall_T0: 400 K
   wall_mass_factor: 3.0
   wall_material: grcop42
   wall_thickness: 0.8 mm
 - id: oturb_in
   type: junction
-  P0: 1 bar
-  T0: 250.0 K
+  P0: 81.3 bar
+  T0: 294 K
   volume: 0.5 L
 - id: lox_turbine
   type: turbine
@@ -216,8 +217,8 @@ components:
   opening: 1.0
 - id: ox_manifold
   type: junction
-  P0: 1 bar
-  T0: 250.0 K
+  P0: 60.8 bar
+  T0: 212 K
   volume: 0.8 L
 - id: lox_injector
   type: orifice
@@ -225,7 +226,7 @@ components:
   diameter: 45.4541 mm
 - id: lox_shaft
   type: shaft
-  N0: 0 rpm
+  N0: 38952 rpm
   bearing_torque: 0.05 N m
   inertia: 2.1e-4 kg m2
   viscous_loss: 0.00035865

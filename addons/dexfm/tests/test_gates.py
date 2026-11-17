@@ -126,3 +126,14 @@ def test_fluidnet_reproduces_design_and_starts(dex):
     assert res.error is None
     assert abs(res.last("tca.Pc") / dex.setup.cfg.pc - 1) < 0.02
     assert abs(res.last("tca.OF") - dex.setup.cfg.of) < 0.1
+
+
+def test_generated_fluidnet_model_solves_cold(dex):
+    """The steady model file written next to the report must run as it is, without a warm start."""
+    fn = pytest.importorskip("fluidnet")
+    from dexfm import fluidnet_model as fm
+    params, _ = fm.calibrate(dex)
+    res = fn.run(fm.build_model(dex, params), mode="steady")
+    assert abs(res.last("tca.Pc") / dex.setup.cfg.pc - 1) < 0.01
+    assert abs(res.last("tca.OF") - dex.setup.cfg.of) < 0.05
+    assert res.last("tca.Isp") < 1.08 * dex.setup.isp        # nozzle exit solve sane at area ratio 165

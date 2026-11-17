@@ -6,7 +6,7 @@
 | Revision | A, v0.3 (draft for review; v0.2 added the fluidnet coupling, v0.3 the h2cea adapter) |
 | Date | 2026-11-10 |
 | Program | DEX1 (dual expander hydrogen/oxygen engine; program code proposed, see OP-M1) |
-| Toolchain | `dexfm` 0.2.1 with `fluidnet` 0.5.0, 13 gates passing, 4 h2cea comparison gates not yet run |
+| Toolchain | `dexfm` 0.2.3 with `fluidnet` 0.5.1 plus the exit Mach fix, 14 gates passing, 4 h2cea comparison gates not yet run |
 | Related | DEX1-SYS-DD-001 (engine concept and powerpack preliminary design) |
 
 ## 1. Purpose and scope
@@ -103,7 +103,7 @@ The heat transfer model is one-dimensional with a single calibration point. Oxyg
 
 `fluidnet_model.build_model` turns a dexfm design point into a fluidnet model file for one powerpack: two shafts, pumps with the dexfm design points, two cooled lines heated by one equivalent chamber (throat area, channel counts and hot-gas areas multiplied by the number of chambers per pack, local area ratio along each line from the dexfm contour), turbines, both bypass valves, the oxidizer control valve, discharge lines and manifolds. `calibrate` fits thirteen parameters (injector, turbine nozzle, bypass and control valve areas, two hot-gas heat transfer factors, two channel hydraulic diameters, two turbine peak efficiencies) so that the fluidnet steady state with prescribed shaft speeds matches thirteen dexfm design values; it converges in about two seconds to a residual of 2e-5. `start_model` adds valve schedules, pressure-actuated valves and ignition; `DEFAULT_START` is the sequence documented in DEX1-SYS-DD-001 section 8. `python -m dexfm run` writes both model files next to the report when fluidnet is installed.
 
-Three observations on fluidnet 0.5.0 from this work. Above a nozzle area ratio of about 100 the exit Mach number solve fails and thrust jumps to the infinite-expansion limit (the 20 kN example gives 468 s at area ratio 100 and 592 s at 120); the generated model therefore caps the area ratio at 100, which does not affect the cycle. A valve that sits at its leak area and then opens against trapped liquid stalls the integrator; the start sequences keep valves cracked at 0.3 % to 2 % from t = 0. Cooled lines are round tubes, so the network model matches heat pickup and pressure drop of a zone but not its wall temperature.
+Three observations on fluidnet from this work. Above a nozzle area ratio of about 100 the exit Mach number solve of versions 0.5.0 and 0.5.1 failed and thrust jumped to the infinite-expansion limit (the 20 kN example gave 468 s at area ratio 100 and 592 s at 120); this was fixed in fluidnet pull request #2 and the generated model now carries the true area ratio. fluidnet still expands the nozzle with one isentropic exponent, so its thrust at area ratio 165 is about 3 % above the dexfm value (92.8 kN against 90.0 kN per powerpack); the cycle is unaffected. A valve that sits at its leak area and then opens against trapped liquid stalls the integrator; the start sequences keep valves cracked at 0.3 % to 2 % from t = 0. Cooled lines are round tubes, so the network model matches heat pickup and pressure drop of a zone but not its wall temperature.
 
 ## 8. Open points for the model
 
@@ -111,7 +111,7 @@ Three observations on fluidnet 0.5.0 from this work. Above a nozzle area ratio o
 |---|---|---|
 | OP-M1 | Program code `DEX1` and package name `dexfm` are proposals | Luis to confirm or rename |
 | OP-M2 | Run the h2cea agreement gates and the comparison script on a machine with RocketCEA; then decide the default provider and re-check the Bartz calibration | Luis, laptop |
-| OP-M8 | Report the three fluidnet observations of section 7 to the fluidnet open-items list | Luis |
+| OP-M8 | Add the two remaining fluidnet observations of section 7 (valve opening against trapped liquid, single-exponent nozzle at high area ratio) to the fluidnet open-items list | Luis |
 | OP-M3 | Oxygen coolant correlation for supercritical and boiling regimes | literature library entry plus heated-tube test data |
 | OP-M4 | Second calibration point for hot-gas heat transfer (a copper-liner calorimeter chamber, for example published subscale hydrogen/oxygen data) | before any liner drawing |
 | OP-M5 | Replace the efficiency placeholders by the delivered-performance stack | when that stack exists |
