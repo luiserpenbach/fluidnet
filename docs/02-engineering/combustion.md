@@ -188,8 +188,8 @@ C_F = Γ(γ) √(2γ/(γ − 1) (1 − (P_e/P_c)^((γ−1)/γ))) + ε (P_e/P_c �
 
 with ε the nozzle area ratio (`area_ratio`, default 40, at least 1), η_F the
 nozzle efficiency (`cf_eff`, default 0.98) and P_e/P_c from the supersonic exit
-Mach number for ε (`exit_mach`, Newton iteration on the log of the area-Mach
-relation). Otherwise (unchoked) the nozzle is treated as expanding ideally to
+Mach number for ε (`exit_mach`, bracketed root of the log of the area-Mach
+relation: Newton steps with bisection fallback, valid for any area ratio). Otherwise (unchoked) the nozzle is treated as expanding ideally to
 ambient pressure:
 
 ```

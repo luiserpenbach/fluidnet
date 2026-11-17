@@ -178,23 +178,42 @@ pub fn vdk(g: f64) -> f64 {
 }
 
 /// Supersonic exit Mach number for area ratio eps (>= 1).
+///
+/// ln(A/A*) rises monotonically with Mach number on the supersonic branch, so the
+/// root is bracketed first and then found by Newton steps that fall back to
+/// bisection whenever a step leaves the bracket. (Plain Newton from a start value
+/// that grows with sqrt(eps) overshot below Mach 1 for area ratios above about
+/// 100, where the slope vanishes, and never recovered: the exit pressure went to
+/// zero and the thrust coefficient to its infinite-expansion limit.)
 pub fn exit_mach(g: f64, eps: f64) -> f64 {
-    if eps <= 1.0 {
+    if !(eps > 1.0) {
         return 1.0;
     }
     let e = (g + 1.0) / (2.0 * (g - 1.0));
-    let ar = |m: f64| (1.0 / m) * ((2.0 / (g + 1.0)) * (1.0 + 0.5 * (g - 1.0) * m * m)).powf(e);
-    // Newton on ln(area ratio) from a supersonic start
-    let mut m = 1.0 + (eps - 1.0).sqrt().max(0.2) * 1.2;
-    for _ in 0..50 {
-        let f = ar(m).ln() - eps.ln();
-        let dm = 1e-6 * m;
-        let d = (ar(m + dm).ln() - ar(m - dm).ln()) / (2.0 * dm);
-        let step = f / d;
-        m = (m - step).max(1.0 + 1e-9);
-        if step.abs() < 1e-12 * m {
-            break;
+    let ln_eps = eps.ln();
+    // f(M) = ln(A/A*) - ln(eps), f(1) < 0, f' = (M^2 - 1) / (M (1 + (g-1)/2 M^2)) > 0 for M > 1
+    let f = |m: f64| e * ((2.0 / (g + 1.0)) * (1.0 + 0.5 * (g - 1.0) * m * m)).ln() - m.ln() - ln_eps;
+    let df = |m: f64| (m * m - 1.0) / (m * (1.0 + 0.5 * (g - 1.0) * m * m));
+    let mut lo = 1.0;
+    let mut hi = 2.0;
+    while f(hi) < 0.0 && hi < 1e6 {
+        lo = hi;
+        hi *= 2.0;
+    }
+    let mut m = 0.5 * (lo + hi);
+    for _ in 0..200 {
+        let fm = f(m);
+        if fm > 0.0 {
+            hi = m;
+        } else {
+            lo = m;
         }
+        let newton = m - fm / df(m);
+        let next = if newton > lo && newton < hi { newton } else { 0.5 * (lo + hi) };
+        if (next - m).abs() <= 1e-14 * m || hi - lo <= 1e-14 * m {
+            return next;
+        }
+        m = next;
     }
     m
 }
@@ -267,6 +286,36 @@ mod tests {
         assert!((me - 3.27834).abs() < 1e-4, "{me}");
         let cf = thrust_coefficient(1.2, 10.0, 0.0);
         assert!((cf - 1.74231).abs() < 1e-4, "{cf}");
+    }
+
+    #[test]
+    fn exit_mach_high_area_ratio() {
+        // Reference values from an independent bracketed root solve (scipy brentq).
+        // The earlier Newton iteration failed above an area ratio of about 100.
+        for &(g, eps, me_ref, cf_ref) in &[
+            (1.2, 200.0, 5.400775984586, 1.994084589203),
+            (1.14, 165.0, 4.715485072560, 2.083700204000),
+            (1.4, 1000.0, 11.404084983557, 1.787541406206),
+            (1.1, 5000.0, 6.004918303102, 2.423358324940),
+            (1.25, 1.0001, 1.010633427822, 1.248645210604),
+        ] {
+            let me = exit_mach(g, eps);
+            assert!((me - me_ref).abs() < 1e-8 * me_ref, "Me g={g} eps={eps}: {me}");
+            let cf = thrust_coefficient(g, eps, 0.0);
+            assert!((cf - cf_ref).abs() < 1e-9, "CF g={g} eps={eps}: {cf}");
+        }
+        // vacuum thrust coefficient rises monotonically with area ratio and stays below the limit
+        let g = 1.15;
+        let limit = vdk(g) * (2.0 * g / (g - 1.0)).sqrt();
+        let mut last = 0.0;
+        for k in 0..60 {
+            let eps = 1.5 * 1.2f64.powi(k);            // 1.5 ... 70 000
+            let cf = thrust_coefficient(g, eps, 0.0);
+            assert!(cf > last && cf < limit, "eps={eps}: {cf}");
+            last = cf;
+        }
+        assert_eq!(exit_mach(1.2, 1.0), 1.0);
+        assert_eq!(exit_mach(1.2, 0.5), 1.0);
     }
 
     #[test]
