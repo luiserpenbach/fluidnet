@@ -186,13 +186,14 @@ pub fn vdk(g: f64) -> f64 {
 /// 100, where the slope vanishes, and never recovered: the exit pressure went to
 /// zero and the thrust coefficient to its infinite-expansion limit.)
 pub fn exit_mach(g: f64, eps: f64) -> f64 {
-    if !(eps > 1.0) {
+    if eps.is_nan() || eps <= 1.0 {
         return 1.0;
     }
     let e = (g + 1.0) / (2.0 * (g - 1.0));
     let ln_eps = eps.ln();
     // f(M) = ln(A/A*) - ln(eps), f(1) < 0, f' = (M^2 - 1) / (M (1 + (g-1)/2 M^2)) > 0 for M > 1
-    let f = |m: f64| e * ((2.0 / (g + 1.0)) * (1.0 + 0.5 * (g - 1.0) * m * m)).ln() - m.ln() - ln_eps;
+    let f =
+        |m: f64| e * ((2.0 / (g + 1.0)) * (1.0 + 0.5 * (g - 1.0) * m * m)).ln() - m.ln() - ln_eps;
     let df = |m: f64| (m * m - 1.0) / (m * (1.0 + 0.5 * (g - 1.0) * m * m));
     let mut lo = 1.0;
     let mut hi = 2.0;
@@ -209,7 +210,11 @@ pub fn exit_mach(g: f64, eps: f64) -> f64 {
             lo = m;
         }
         let newton = m - fm / df(m);
-        let next = if newton > lo && newton < hi { newton } else { 0.5 * (lo + hi) };
+        let next = if newton > lo && newton < hi {
+            newton
+        } else {
+            0.5 * (lo + hi)
+        };
         if (next - m).abs() <= 1e-14 * m || hi - lo <= 1e-14 * m {
             return next;
         }
@@ -300,7 +305,10 @@ mod tests {
             (1.25, 1.0001, 1.010633427822, 1.248645210604),
         ] {
             let me = exit_mach(g, eps);
-            assert!((me - me_ref).abs() < 1e-8 * me_ref, "Me g={g} eps={eps}: {me}");
+            assert!(
+                (me - me_ref).abs() < 1e-8 * me_ref,
+                "Me g={g} eps={eps}: {me}"
+            );
             let cf = thrust_coefficient(g, eps, 0.0);
             assert!((cf - cf_ref).abs() < 1e-9, "CF g={g} eps={eps}: {cf}");
         }
@@ -309,7 +317,7 @@ mod tests {
         let limit = vdk(g) * (2.0 * g / (g - 1.0)).sqrt();
         let mut last = 0.0;
         for k in 0..60 {
-            let eps = 1.5 * 1.2f64.powi(k);            // 1.5 ... 70 000
+            let eps = 1.5 * 1.2f64.powi(k); // 1.5 ... 70 000
             let cf = thrust_coefficient(g, eps, 0.0);
             assert!(cf > last && cf < limit, "eps={eps}: {cf}");
             last = cf;
