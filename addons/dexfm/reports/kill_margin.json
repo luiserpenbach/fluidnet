@@ -1,0 +1,18 @@
+[
+ {
+  "heat_factor": 0.8,
+  "pc_max": 5468750.0
+ },
+ {
+  "heat_factor": 0.7,
+  "pc_max": 5093750.0
+ },
+ {
+  "heat_factor": 0.6,
+  "pc_max": 4437500.0
+ },
+ {
+  "heat_factor": 0.5,
+  "pc_max": 3406250.0
+ }
+]

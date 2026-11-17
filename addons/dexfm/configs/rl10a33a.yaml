@@ -1,0 +1,22 @@
+# RL10A-3-3A validation case (single hydrogen expander). Geometry approximated: stainless tube bundle
+# represented as channels, full nozzle regeneratively cooled. Reference: NASA TM-107318, NASA CR-195478.
+name: RL10A-3-3A
+thrust_total: 73400.0
+n_chambers: 1
+n_packs: 1
+of: 5.0
+pc: 3.275e6
+eps: 61.0
+exit_area_total: null
+cr: 4.0
+lstar: 0.9
+eps_regen: 61.0
+ox_zone: none
+wall: {k: 15.0, t_wall: 0.33e-3, rib_min: 0.4e-3, w_throat: 1.6e-3, w_max: 6.0e-3, h_min: 3.0e-3, h_max: 3.0e-3, T_limit: 1400.0}
+p_tank_f: 1.85e5
+T_tank_f: 21.4
+p_tank_o: 3.0e5
+T_tank_o: 97.0
+bypass_f: 0.0
+eta_cstar: 0.99
+eta_cf: 0.972

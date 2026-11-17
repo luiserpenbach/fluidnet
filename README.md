@@ -25,6 +25,14 @@ tools/           table generators (CoolProp, Cantera), expander sizing script
 docs/            documentation (start at docs/index.md; `mkdocs serve` for a local site)
 ```
 
+## Add-on packages
+
+`addons/dexfm` is an engine-level design model for a dual expander LOX/LH2 engine with several thrust
+chambers on shared powerpacks. It sizes the chamber cooling, turbopumps and power balance, then
+generates a fluidnet model of one powerpack, calibrates it to the design point and runs the start
+transient. See `addons/dexfm/README.md`; the worked baseline (DEX1-A) with its report and both design
+documents is in `addons/dexfm/reports` and `addons/dexfm/docs`.
+
 ## Quick start
 
 Native CLI:

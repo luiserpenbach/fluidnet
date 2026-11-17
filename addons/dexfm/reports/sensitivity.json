@@ -1,0 +1,57 @@
+[
+ {
+  "case": "baseline",
+  "pc_max": 5843750.0,
+  "isp": 458.05230787164
+ },
+ {
+  "case": "heat transfer -20 %",
+  "pc_max": 5468750.0,
+  "isp": 457.18812138145563
+ },
+ {
+  "case": "heat transfer +20 %",
+  "pc_max": 5937500.0,
+  "isp": 458.25601987211337
+ },
+ {
+  "case": "pump efficiency -5 pts",
+  "pc_max": 5656250.0,
+  "isp": 457.6297339291362
+ },
+ {
+  "case": "turbine efficiency -5 pts",
+  "pc_max": 5656250.0,
+  "isp": 457.6297339291362
+ },
+ {
+  "case": "wall limit 650 K",
+  "pc_max": 5562500.0,
+  "isp": 457.41176568250194
+ },
+ {
+  "case": "wall limit 850 K",
+  "pc_max": 6031250.0,
+  "isp": 458.4558220526766
+ },
+ {
+  "case": "bypass margin 5 %",
+  "pc_max": 6218750.0,
+  "isp": 458.8430550952131
+ },
+ {
+  "case": "bypass margin 20 %",
+  "pc_max": 5281250.0,
+  "isp": 456.72564044031304
+ },
+ {
+  "case": "mixture ratio 5.5",
+  "pc_max": 5843750.0,
+  "isp": 458.33510599148497
+ },
+ {
+  "case": "mixture ratio 6.5",
+  "pc_max": 5937500.0,
+  "isp": 457.15350999014686
+ }
+]
