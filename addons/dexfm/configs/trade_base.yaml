@@ -1,0 +1,13 @@
+# Common basis for the architecture and oxygen-zone trades (chamber pressure is solved, not set)
+name: DEX1-trade
+thrust_total: 180000.0
+n_chambers: 4
+n_packs: 2
+of: 6.0
+pc: 5.0e6
+exit_area_total: 3.0
+cr: 4.0
+lstar: 2.0
+eps_regen: 12.0
+ox_zone: barrel
+ox_param: 0.6
