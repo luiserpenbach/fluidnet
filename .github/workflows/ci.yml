@@ -104,6 +104,7 @@ jobs:
       - working-directory: ui
         run: |
           npm ci
+          npm test
           npm run wasm
           npm run build
 

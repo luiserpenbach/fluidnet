@@ -62,6 +62,12 @@ npm run build                                             # static site in ui/di
 `npm run wasm` copies the engine and the fluid tables (gzip + base64 text) into
 `ui/public`. The built site is fully static and works offline.
 
+The editor has undo/redo, multi-select with copy and paste, rotation, insertion
+of parts into existing lines, context menus, a command search (Ctrl+K),
+parameter studies over steady states, reference runs for comparing transients,
+CSV export and a dark theme; see `docs/03-user-guide/web-ui.md`. `npm test`
+runs the unit tests of the schematic operations.
+
 Python (needs a Rust toolchain; builds a wheel with the fluid tables inside):
 
 ```sh

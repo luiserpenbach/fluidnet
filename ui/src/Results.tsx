@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import uPlot from 'uplot';
 import { displayUnit, fmt } from './model';
+import { downloadText, fileStem, resultsCsv } from './files';
 import type { RunResult } from './engine';
 
 export const SERIES_COLORS = ['#2563c9', '#d9433f', '#0f9488', '#d9711c', '#7c4dcc', '#4b5563', '#c0397a', '#3f8f3f', '#a16207', '#0e7aa6'];
@@ -16,8 +17,32 @@ export class ResultSet {
     this.nt = r.meta.n_time;
     r.meta.channels.forEach((c: any, i: number) => this.index.set(c.name, i));
   }
+  /** The independent variable: time, or the swept parameter of a study. */
   get time(): Float64Array {
     return this.data.subarray(0, this.nt);
+  }
+  get mode(): 'steady' | 'transient' | 'study' {
+    return this.meta.mode;
+  }
+  get xName(): string {
+    return this.meta.x?.name ?? 't';
+  }
+  get xUnit(): string {
+    return this.meta.x?.unit ?? 's';
+  }
+  /** Index of the sample nearest to x. */
+  nearest(x: number): number {
+    const t = this.time;
+    let lo = 0;
+    let hi = this.nt - 1;
+    if (hi <= 0) return 0;
+    const asc = t[hi] >= t[0];
+    while (hi - lo > 1) {
+      const mid = (lo + hi) >> 1;
+      if (t[mid] <= x === asc) lo = mid;
+      else hi = mid;
+    }
+    return Math.abs(t[lo] - x) <= Math.abs(t[hi] - x) ? lo : hi;
   }
   has(name: string) {
     return this.index.has(name);
@@ -71,15 +96,19 @@ export function defaultSelection(rs: ResultSet): string[] {
   return pick.slice(0, 8);
 }
 
-function Chart({ rs, names, height, onProbe, probe }: { rs: ResultSet; names: string[]; height: number; onProbe: (k: number) => void; probe: number | null }) {
+function Chart({ rs, refRs, names, height, onProbe, probe, theme }: { rs: ResultSet; refRs: ResultSet | null; names: string[]; height: number; onProbe: (k: number) => void; probe: number | null; theme: string }) {
   const el = useRef<HTMLDivElement>(null);
   const plot = useRef<uPlot | null>(null);
   const unit = rs.unit(names[0]);
   const du = displayUnit(unit);
   useEffect(() => {
     if (!el.current) return;
-    const t = Array.from(rs.time);
-    const ys = names.map((n) => Array.from(rs.series(n)!, (v) => (isFinite(v) ? v * du.scale : null)));
+    const col = (r: ResultSet, n: string) => Array.from(r.series(n)!, (v) => (isFinite(v) ? v * du.scale : null));
+    const refNames = refRs ? names.filter((n) => refRs.has(n)) : [];
+    let data: any = [Array.from(rs.time), ...names.map((n) => col(rs, n))];
+    // the reference run has its own time base: join the two tables on x
+    if (refRs && refNames.length) data = uPlot.join([data, [Array.from(refRs.time), ...refNames.map((n) => col(refRs, n))]]);
+    const xl = rs.xUnit ? `${rs.xName} [${rs.xUnit}]` : rs.xName;
     const css = getComputedStyle(document.documentElement);
     const grid = css.getPropertyValue('--grid').trim() || '#eee';
     const axisText = css.getPropertyValue('--muted').trim() || '#666';
@@ -91,16 +120,26 @@ function Chart({ rs, names, height, onProbe, probe }: { rs: ResultSet; names: st
       legend: { show: true },
       scales: { x: { time: false } },
       axes: [
-        { stroke: axisText, grid: { stroke: grid, width: 1 }, ticks: { stroke: grid }, font, label: 't [s]', labelFont: font, labelSize: 14 },
+        { stroke: axisText, grid: { stroke: grid, width: 1 }, ticks: { stroke: grid }, font, label: xl, labelFont: font, labelSize: 14 },
         { stroke: axisText, grid: { stroke: grid, width: 1 }, ticks: { stroke: grid }, font, size: 60, label: du.label, labelFont: font, labelSize: 14 },
       ],
       series: [
-        { label: 't', value: (_u, v) => (v == null ? '–' : fmt(v, 5)) },
+        { label: rs.xName, value: (_u, v) => (v == null ? '–' : fmt(v, 5)) },
         ...names.map((n, i) => ({
           label: n,
           stroke: SERIES_COLORS[i % SERIES_COLORS.length],
           width: 1.5,
+          spanGaps: true,
           points: { show: rs.nt < 40 },
+          value: (_u: any, v: number) => (v == null ? '–' : fmt(v, 5)),
+        })),
+        ...refNames.map((n) => ({
+          label: `${n} (ref)`,
+          stroke: SERIES_COLORS[names.indexOf(n) % SERIES_COLORS.length],
+          width: 1,
+          dash: [5, 4],
+          spanGaps: true,
+          points: { show: false },
           value: (_u: any, v: number) => (v == null ? '–' : fmt(v, 5)),
         })),
       ],
@@ -108,7 +147,7 @@ function Chart({ rs, names, height, onProbe, probe }: { rs: ResultSet; names: st
         ready: [
           (u) => {
             u.over.addEventListener('click', () => {
-              if (u.cursor.idx != null) onProbe(u.cursor.idx);
+              if (u.cursor.idx != null) onProbe(rs.nearest(u.data[0][u.cursor.idx]));
             });
           },
         ],
@@ -130,7 +169,7 @@ function Chart({ rs, names, height, onProbe, probe }: { rs: ResultSet; names: st
         ],
       },
     };
-    plot.current = new uPlot(opts, [t, ...ys] as any, el.current);
+    plot.current = new uPlot(opts, data, el.current);
     (plot.current as any)._probe = probe;
     const ro = new ResizeObserver(() => {
       if (el.current && plot.current) plot.current.setSize({ width: el.current.clientWidth, height });
@@ -142,7 +181,7 @@ function Chart({ rs, names, height, onProbe, probe }: { rs: ResultSet; names: st
       plot.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rs, names.join('|'), height]);
+  }, [rs, refRs, names.join('|'), height, theme]);
   useEffect(() => {
     if (plot.current) {
       (plot.current as any)._probe = probe;
@@ -212,73 +251,79 @@ function ChannelBrowser({ rs, selected, setSelected }: { rs: ResultSet; selected
   );
 }
 
-function ValuesTable({ rs, k }: { rs: ResultSet; k: number }) {
+function ValuesTable({ rs, k, selIds, onSelectComp }: { rs: ResultSet; k: number; selIds: string[]; onSelectComp: (id: string) => void }) {
+  const [q, setQ] = useState('');
   const v = (n: string, si = '') => {
     if (!rs.has(n)) return '–';
     const du = displayUnit(si || rs.unit(n));
     return fmt(rs.at(n, k) * du.scale, 5);
   };
-  const rows = rs.meta.components.map((c: any) => {
-    const nodeLike = ['tank', 'junction', 'boundary', 'shaft', 'combustion_chamber'].includes(c.type);
-    const pin = nodeLike ? c.id : rs.portNode(c.id, 'in');
-    const pout = nodeLike ? null : rs.portNode(c.id, 'out');
-    const mdot = c.type === 'pipe' ? (rs.has(`${c.id}.mdot_in`) ? `${c.id}.mdot_in` : `${c.id}.mdot`) : `${c.id}.mdot`;
-    const choked = rs.has(`${c.id}.choked`) && rs.at(`${c.id}.choked`, k) > 0.5;
-    const x = pin && rs.has(`${pin}.x`) ? rs.at(`${pin}.x`, k) : NaN;
-    return (
-      <tr key={c.id}>
-        <td className="mono">{c.id}</td>
-        <td className="muted">{c.type.replace('_', ' ')}</td>
-        <td className="num">{pin ? v(`${pin}.P`) : '–'}</td>
-        <td className="num">{pout ? v(`${pout}.P`) : '–'}</td>
-        <td className="num">{pin ? v(`${pin}.T`) : '–'}</td>
-        <td className="num">{pout ? v(`${pout}.T`) : '–'}</td>
-        <td className="num">{pin ? v(`${pin}.rho`) : '–'}</td>
-        <td className="num">{isFinite(x) && x > 0 && x < 1 ? fmt(x, 3) : '–'}</td>
-        <td className="num">{c.type === 'combustion_chamber' ? v(`${c.id}.mdot`) : nodeLike ? '–' : v(mdot)}</td>
-        <td>
-          {choked && <span className="pill pill-warn">choked</span>}
-          {rs.has(`${c.id}.opening`) && <span className="pill">{fmt(rs.at(`${c.id}.opening`, k) * 100, 3)} % open</span>}
-          {c.type === 'tank' && rs.has(`${c.id}.m`) && <span className="pill">{fmt(rs.at(`${c.id}.m`, k), 4)} kg</span>}
-          {rs.has(`${c.id}.Q`) && <span className="pill">{fmt(rs.at(`${c.id}.Q`, k) / 1e3, 4)} kW</span>}
-          {rs.has(`${c.id}.Tw_max`) && <span className="pill">wall {fmt(rs.at(`${c.id}.Tw_max`, k), 4)} K</span>}
-          {c.type === 'pump' && (
-            <>
-              <span className="pill">+{fmt(rs.at(`${c.id}.dp`, k) / 1e5, 4)} bar</span>
-              <span className="pill">η {fmt(rs.at(`${c.id}.eff`, k) * 100, 3)} %</span>
-              <span className="pill">{fmt(rs.at(`${c.id}.power`, k) / 1e3, 4)} kW</span>
-              <span className="pill">NPSH {fmt(rs.at(`${c.id}.npsh`, k), 4)} m</span>
-            </>
-          )}
-          {c.type === 'turbine' && (
-            <>
-              <span className="pill">{fmt(rs.at(`${c.id}.power`, k) / 1e3, 4)} kW</span>
-              <span className="pill">η {fmt(rs.at(`${c.id}.eff`, k) * 100, 3)} %</span>
-              <span className="pill">PR {fmt(rs.at(`${c.id}.pr`, k), 4)}</span>
-              <span className="pill">u/c0 {fmt(rs.at(`${c.id}.u_c0`, k), 3)}</span>
-            </>
-          )}
-          {c.type === 'shaft' && <span className="pill">{fmt((rs.at(`${c.id}.speed`, k) * 30) / Math.PI, 5)} rpm</span>}
-          {c.type === 'combustion_chamber' && (
-            <>
-              <span className="pill">Pc {fmt(rs.at(`${c.id}.Pc`, k) / 1e5, 4)} bar</span>
-              <span className="pill">O/F {fmt(rs.at(`${c.id}.OF`, k), 4)}</span>
-              <span className="pill">F {fmt(rs.at(`${c.id}.thrust`, k) / 1e3, 4)} kN</span>
-              <span className="pill">Isp {fmt(rs.at(`${c.id}.Isp`, k), 4)} s</span>
-              <span className="pill">c* {fmt(rs.at(`${c.id}.cstar`, k), 4)} m/s</span>
-              <span className="pill">Tc {fmt(rs.at(`${c.id}.Tc`, k), 4)} K</span>
-            </>
-          )}
-        </td>
-      </tr>
-    );
-  });
+  const ql = q.trim().toLowerCase();
+  const rows = rs.meta.components
+    .filter((c: any) => !ql || c.id.toLowerCase().includes(ql) || c.type.replace('_', ' ').includes(ql))
+    .map((c: any) => {
+      const nodeLike = ['tank', 'junction', 'boundary', 'shaft', 'combustion_chamber'].includes(c.type);
+      const pin = nodeLike ? c.id : rs.portNode(c.id, 'in');
+      const pout = nodeLike ? null : rs.portNode(c.id, 'out');
+      const mdot = c.type === 'pipe' ? (rs.has(`${c.id}.mdot_in`) ? `${c.id}.mdot_in` : `${c.id}.mdot`) : `${c.id}.mdot`;
+      const choked = rs.has(`${c.id}.choked`) && rs.at(`${c.id}.choked`, k) > 0.5;
+      const x = pin && rs.has(`${pin}.x`) ? rs.at(`${pin}.x`, k) : NaN;
+      return (
+        <tr key={c.id} className={selIds.includes(c.id) ? 'on' : ''} onClick={() => onSelectComp(c.id)} title="Show on the schematic">
+          <td className="mono">{c.id}</td>
+          <td className="muted">{c.type.replace('_', ' ')}</td>
+          <td className="num">{pin ? v(`${pin}.P`) : '–'}</td>
+          <td className="num">{pout ? v(`${pout}.P`) : '–'}</td>
+          <td className="num">{pin ? v(`${pin}.T`) : '–'}</td>
+          <td className="num">{pout ? v(`${pout}.T`) : '–'}</td>
+          <td className="num">{pin ? v(`${pin}.rho`) : '–'}</td>
+          <td className="num">{isFinite(x) && x > 0 && x < 1 ? fmt(x, 3) : '–'}</td>
+          <td className="num">{c.type === 'combustion_chamber' ? v(`${c.id}.mdot`) : nodeLike ? '–' : v(mdot)}</td>
+          <td>
+            {choked && <span className="pill pill-warn">choked</span>}
+            {rs.has(`${c.id}.opening`) && <span className="pill">{fmt(rs.at(`${c.id}.opening`, k) * 100, 3)} % open</span>}
+            {c.type === 'tank' && rs.has(`${c.id}.m`) && <span className="pill">{fmt(rs.at(`${c.id}.m`, k), 4)} kg</span>}
+            {rs.has(`${c.id}.Q`) && <span className="pill">{fmt(rs.at(`${c.id}.Q`, k) / 1e3, 4)} kW</span>}
+            {rs.has(`${c.id}.Tw_max`) && <span className="pill">wall {fmt(rs.at(`${c.id}.Tw_max`, k), 4)} K</span>}
+            {c.type === 'pump' && (
+              <>
+                <span className="pill">+{fmt(rs.at(`${c.id}.dp`, k) / 1e5, 4)} bar</span>
+                <span className="pill">η {fmt(rs.at(`${c.id}.eff`, k) * 100, 3)} %</span>
+                <span className="pill">{fmt(rs.at(`${c.id}.power`, k) / 1e3, 4)} kW</span>
+                <span className="pill">NPSH {fmt(rs.at(`${c.id}.npsh`, k), 4)} m</span>
+              </>
+            )}
+            {c.type === 'turbine' && (
+              <>
+                <span className="pill">{fmt(rs.at(`${c.id}.power`, k) / 1e3, 4)} kW</span>
+                <span className="pill">η {fmt(rs.at(`${c.id}.eff`, k) * 100, 3)} %</span>
+                <span className="pill">PR {fmt(rs.at(`${c.id}.pr`, k), 4)}</span>
+                <span className="pill">u/c0 {fmt(rs.at(`${c.id}.u_c0`, k), 3)}</span>
+              </>
+            )}
+            {c.type === 'shaft' && <span className="pill">{fmt((rs.at(`${c.id}.speed`, k) * 30) / Math.PI, 5)} rpm</span>}
+            {c.type === 'combustion_chamber' && (
+              <>
+                <span className="pill">Pc {fmt(rs.at(`${c.id}.Pc`, k) / 1e5, 4)} bar</span>
+                <span className="pill">O/F {fmt(rs.at(`${c.id}.OF`, k), 4)}</span>
+                <span className="pill">F {fmt(rs.at(`${c.id}.thrust`, k) / 1e3, 4)} kN</span>
+                <span className="pill">Isp {fmt(rs.at(`${c.id}.Isp`, k), 4)} s</span>
+                <span className="pill">c* {fmt(rs.at(`${c.id}.cstar`, k), 4)} m/s</span>
+                <span className="pill">Tc {fmt(rs.at(`${c.id}.Tc`, k), 4)} K</span>
+              </>
+            )}
+          </td>
+        </tr>
+      );
+    });
   return (
     <div className="table-wrap">
       <table className="vtable">
         <thead>
           <tr>
-            <th>Component</th>
+            <th>
+              <input id="table-filter" className="field th-filter" placeholder="Component" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Filter components" />
+            </th>
             <th>Type</th>
             <th>P in [bar]</th>
             <th>P out [bar]</th>
@@ -296,7 +341,7 @@ function ValuesTable({ rs, k }: { rs: ResultSet; k: number }) {
   );
 }
 
-function Profile({ rs, k }: { rs: ResultSet; k: number }) {
+function Profile({ rs, k, theme }: { rs: ResultSet; k: number; theme: string }) {
   const pipes = rs.meta.components.filter((c: any) => c.type === 'pipe' && c.nodes.length > 0);
   const [pid, setPid] = useState<string>(pipes[0]?.id ?? '');
   const el = useRef<HTMLDivElement>(null);
@@ -337,7 +382,7 @@ function Profile({ rs, k }: { rs: ResultSet; k: number }) {
       ro.disconnect();
       u.destroy();
     };
-  }, [rs, k, pipe?.id]);
+  }, [rs, k, pipe?.id, theme]);
   if (!pipes.length) return <div className="empty">No discretised pipes in this model.</div>;
   return (
     <div className="profile">
@@ -353,12 +398,70 @@ function Profile({ rs, k }: { rs: ResultSet; k: number }) {
   );
 }
 
-export function Results({ rs, selected, setSelected, probe, setProbe, height }: { rs: ResultSet; selected: string[]; setSelected: (s: string[]) => void; probe: number | null; setProbe: (k: number | null) => void; height: number }) {
-  const steady = rs.meta.mode === 'steady';
-  const [tab, setTab] = useState<'plots' | 'table' | 'profile'>(steady ? 'table' : 'plots');
-  useEffect(() => setTab(steady ? 'table' : 'plots'), [steady, rs]);
+function Messages({ rs, checkWarnings, runErr }: { rs: ResultSet | null; checkWarnings: string[]; runErr: string | null }) {
+  const run: string[] = rs?.meta.warnings ?? [];
+  const model = checkWarnings.filter((w) => !run.includes(w));
+  const stats: [string, any][] = Object.entries({ ...(rs?.meta.stats ?? {}), ...(rs?.meta.steady ?? {}) }).filter(([, v]) => v !== null && typeof v !== 'object');
+  return (
+    <div className="messages">
+      {runErr && <div className="msg msg-err">{runErr}</div>}
+      {run.map((w, i) => (
+        <div key={`r${i}`} className="msg msg-warn">
+          {w}
+        </div>
+      ))}
+      {model.map((w, i) => (
+        <div key={`m${i}`} className="msg msg-warn">
+          <span className="muted">Model check · </span>
+          {w}
+        </div>
+      ))}
+      {!runErr && !run.length && !model.length && <div className="muted">No warnings.</div>}
+      {stats.length > 0 && (
+        <>
+          <div className="section-label">Solver</div>
+          <div className="kv stats mono">
+            {stats.map(([key, val]) => (
+              <React.Fragment key={key}>
+                <span>{key.replace(/_/g, ' ')}</span>
+                <b>{typeof val === 'number' ? fmt(val, 5) : String(val)}</b>
+              </React.Fragment>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+export type ResultTab = 'plots' | 'table' | 'profile' | 'messages';
+
+export function Results(props: {
+  rs: ResultSet | null;
+  refRs: ResultSet | null;
+  setRefRs: (r: ResultSet | null) => void;
+  tab: ResultTab;
+  setTab: (t: ResultTab) => void;
+  selected: string[];
+  setSelected: (s: string[]) => void;
+  probe: number | null;
+  setProbe: (k: number | null) => void;
+  playing: boolean;
+  setPlaying: (p: boolean) => void;
+  height: number;
+  theme: string;
+  stale: boolean;
+  busy: string | null;
+  selIds: string[];
+  onSelectComp: (id: string) => void;
+  checkWarnings: string[];
+  runErr: string | null;
+}) {
+  const { rs, refRs, tab, setTab, selected, setSelected, probe, setProbe, height, theme } = props;
+  const steady = rs?.mode === 'steady';
   const groups = useMemo(() => {
     const g = new Map<string, string[]>();
+    if (!rs) return [];
     for (const n of selected) {
       if (!rs.has(n)) continue;
       const u = displayUnit(rs.unit(n)).label;
@@ -367,46 +470,98 @@ export function Results({ rs, selected, setSelected, probe, setProbe, height }: 
     }
     return [...g.values()];
   }, [rs, selected]);
-  const k = probe ?? rs.nt - 1;
+  const k = rs ? Math.min(probe ?? rs.nt - 1, rs.nt - 1) : 0;
   const chartH = Math.max(130, Math.floor((height - 74) / Math.max(1, groups.length)) - 34);
+  const hasProfile = !!rs?.meta.components.some((c: any) => c.type === 'pipe' && c.nodes.length > 0);
+  const nMsg = (rs?.meta.warnings?.length ?? 0) + (props.runErr ? 1 : 0);
+  const refOk = !!rs && !!refRs && refRs !== rs && refRs.mode === rs.mode && refRs.xName === rs.xName;
+  const view: ResultTab = (tab === 'plots' && steady) || (tab === 'profile' && !hasProfile) ? 'table' : tab;
+  const empty = <div className="empty">{props.busy ?? 'Run a transient or solve the steady state to see results here.'}</div>;
   return (
     <div className="results">
       <div className="res-bar">
-        <div className="tabs">
+        <div className="tabs" role="tablist">
           {!steady && (
-            <button className={tab === 'plots' ? 'on' : ''} onClick={() => setTab('plots')}>
+            <button role="tab" className={view === 'plots' ? 'on' : ''} onClick={() => setTab('plots')}>
               Plots
             </button>
           )}
-          <button className={tab === 'table' ? 'on' : ''} onClick={() => setTab('table')}>
+          <button role="tab" className={view === 'table' ? 'on' : ''} onClick={() => setTab('table')}>
             {steady ? 'Steady state' : 'Values'}
           </button>
-          {rs.meta.components.some((c: any) => c.type === 'pipe' && c.nodes.length > 0) && (
-            <button className={tab === 'profile' ? 'on' : ''} onClick={() => setTab('profile')}>
+          {hasProfile && (
+            <button role="tab" className={view === 'profile' ? 'on' : ''} onClick={() => setTab('profile')}>
               Line profile
             </button>
           )}
+          <button role="tab" className={view === 'messages' ? 'on' : ''} onClick={() => setTab('messages')}>
+            Messages{nMsg ? <span className="badge">{nMsg}</span> : null}
+          </button>
         </div>
-        <div className="res-info mono">
-          {steady ? 'steady state' : `t = ${fmt(rs.time[k], 5)} s`}
-          {!steady && probe != null && (
-            <button className="mini" onClick={() => setProbe(null)}>
-              end
+        {rs && props.stale && (
+          <span className="pill pill-warn" title="The model has changed since these results were computed. Run again to update them.">
+            out of date
+          </span>
+        )}
+        {rs && (
+          <div className="res-info mono">
+            {!steady && rs.nt > 1 && (
+              <>
+                <button className="mini" id="play" onClick={() => props.setPlaying(!props.playing)} title="Play through the result (P)">
+                  {props.playing ? 'pause' : 'play'}
+                </button>
+                <input
+                  id="scrub"
+                  className="scrub"
+                  type="range"
+                  min={0}
+                  max={rs.nt - 1}
+                  value={k}
+                  aria-label={`Probe ${rs.xName}`}
+                  onChange={(e) => {
+                    props.setPlaying(false);
+                    setProbe(Number(e.target.value));
+                  }}
+                />
+              </>
+            )}
+            <span className="res-t">{steady ? 'steady state' : `${rs.xName} = ${fmt(rs.time[k], 5)}${rs.xUnit ? ` ${rs.xUnit}` : ''}`}</span>
+            {!steady && probe != null && (
+              <button className="mini" onClick={() => setProbe(null)} title="Show the last point">
+                end
+              </button>
+            )}
+            {!steady && (
+              <button
+                className={`mini${refOk ? ' on' : ''}`}
+                id="keep-ref"
+                onClick={() => props.setRefRs(refRs ? null : rs)}
+                title={refRs ? 'Drop the reference run' : 'Keep this run as a dashed reference in the plots, to compare the next run against'}
+              >
+                {refRs ? 'clear reference' : 'keep as reference'}
+              </button>
+            )}
+            <button className="mini" id="export-csv" onClick={() => downloadText(`${fileStem(rs.meta.name || 'results')}_${rs.mode}.csv`, resultsCsv(rs), 'text/csv')} title="Download all channels as CSV">
+              CSV
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
-      {tab === 'table' ? (
-        <ValuesTable rs={rs} k={k} />
-      ) : tab === 'profile' ? (
-        <Profile rs={rs} k={k} />
+      {view === 'messages' ? (
+        <Messages rs={rs} checkWarnings={props.checkWarnings} runErr={props.runErr} />
+      ) : !rs ? (
+        empty
+      ) : view === 'table' ? (
+        <ValuesTable rs={rs} k={k} selIds={props.selIds} onSelectComp={props.onSelectComp} />
+      ) : view === 'profile' ? (
+        <Profile rs={rs} k={k} theme={theme} />
       ) : (
         <div className="plots">
           <ChannelBrowser rs={rs} selected={selected} setSelected={setSelected} />
           <div className="charts">
             {groups.length === 0 && <div className="empty">Pick channels on the left to plot them.</div>}
             {groups.map((names) => (
-              <Chart key={names.join('|')} rs={rs} names={names} height={chartH} onProbe={setProbe} probe={probe} />
+              <Chart key={names.join('|')} rs={rs} refRs={refOk ? refRs : null} names={names} height={chartH} onProbe={setProbe} probe={probe} theme={theme} />
             ))}
           </div>
         </div>

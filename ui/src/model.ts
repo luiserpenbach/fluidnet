@@ -4,7 +4,7 @@ export interface Comp {
   id: string;
   type: string;
   params: Record<string, any>;
-  ui: { x: number; y: number; flip?: boolean };
+  ui: { x: number; y: number; flip?: boolean; rot?: number };
 }
 
 export interface Sim {
@@ -24,6 +24,12 @@ export interface Model {
   simulation: Sim;
 }
 
+/** Rotation in degrees, clockwise, snapped to quarter turns. */
+export function normRot(r: any): number {
+  const n = Math.round((Number(r) || 0) / 90) * 90;
+  return ((n % 360) + 360) % 360;
+}
+
 export const defaultSim = (): Sim => ({ t_end: 1, output_dt: null, rtol: 1e-4, start_from_steady: false });
 
 export function emptyModel(): Model {
@@ -39,7 +45,7 @@ export function parseModel(text: string): Model {
       id: String(id ?? `c${i}`),
       type: String(type),
       params,
-      ui: { x: Number(ui?.x ?? 80 + 160 * (i % 5)), y: Number(ui?.y ?? 100 + 140 * Math.floor(i / 5)), flip: !!ui?.flip },
+      ui: { x: Number(ui?.x ?? 80 + 160 * (i % 5)), y: Number(ui?.y ?? 100 + 140 * Math.floor(i / 5)), flip: !!ui?.flip, rot: normRot(ui?.rot) },
     };
   });
   const conns: [string, string][] = (raw.connections ?? []).map((c: any) =>
@@ -58,6 +64,7 @@ export function parseModel(text: string): Model {
 function compObj(c: Comp) {
   const ui: any = { x: Math.round(c.ui.x), y: Math.round(c.ui.y) };
   if (c.ui.flip) ui.flip = true;
+  if (c.ui.rot) ui.rot = c.ui.rot;
   const params: any = {};
   for (const [k, v] of Object.entries(c.params)) if (v !== null && v !== undefined && v !== '') params[k] = v;
   return { id: c.id, type: c.type, ...params, ui };
