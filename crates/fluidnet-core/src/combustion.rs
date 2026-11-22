@@ -281,6 +281,16 @@ mod tests {
         // table gave 3253 K (open item OI-019).
         let e = find("C2H5OH", "O2").unwrap().eval(1.4923076923076923, 20e5);
         assert!((e.tc - 3187.0).abs() < 5.0, "{}", e.tc);
+        // liquid ethanol / liquid N2O (293 K): E2 operating line, independent
+        // Cantera run with ethanol at 298 K: c* 1397 m/s, Tc 2121 K at O/F 2.35,
+        // 16.1 bar and c* 1564 m/s, Tc 3068 K at O/F 4.37, 28.9 bar.
+        let n = find("C2H5OH", "N2O").unwrap();
+        let lo = n.eval(2.35, 16.1e5);
+        let hi = n.eval(4.37, 28.9e5);
+        assert!((lo.cstar - 1397.0).abs() < 5.0, "{}", lo.cstar);
+        assert!((lo.tc - 2121.0).abs() < 15.0, "{}", lo.tc);
+        assert!((hi.cstar - 1564.0).abs() < 5.0, "{}", hi.cstar);
+        assert!((hi.tc - 3068.0).abs() < 15.0, "{}", hi.tc);
     }
 
     #[test]

@@ -143,7 +143,7 @@ evaluated for a steady-state solve, e.g. the end of a start sequence).
 | `shaft` | – | Rotor inertia, bearing and viscous losses; or a prescribed speed (motor) |
 | `pump` | in, out | Centrifugal pump, affinity-law head and power maps from one design point or measured head, efficiency and speed-correction maps, fluid inertance; all losses heat the fluid; NPSH output |
 | `turbine` | in, out | Gas turbine: real-gas nozzle flow (choked or not, optional flow-area map) and impulse-stage torque linear in blade speed (stall to runaway) or from a measured efficiency map |
-| `combustion_chamber` | fuel, ox | Equilibrium tables (H2, CH4, ethanol with O2) corrected for injection enthalpy, chamber filling and mixing dynamics, ignition, nozzle thrust and Isp |
+| `combustion_chamber` | fuel, ox | Equilibrium tables (H2, CH4, ethanol with O2; ethanol with N2O) corrected for injection enthalpy, chamber filling and mixing dynamics, ignition, nozzle thrust and Isp |
 
 Pumps and turbines name a `shaft` (with a gear `ratio`) or take a fixed `speed`.
 Without map data they scale from one design point (affinity laws, impulse

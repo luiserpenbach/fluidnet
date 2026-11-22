@@ -30,10 +30,12 @@ import exExpStart from '../../examples/expander_start.yaml?raw';
 import exExpThrottle from '../../examples/expander_cycle.yaml?raw';
 import exRl10 from '../../examples/rl10a33a.yaml?raw';
 import exRl10Start from '../../examples/rl10a33a_start.yaml?raw';
+import exE21 from '../../examples/e2_1_feed.yaml?raw';
 
 const EXAMPLES: [string, string][] = [
   ['RL10A-3-3A (test point 1)', exRl10],
   ['RL10A-3-3A start', exRl10Start],
+  ['E2-1 N2O/ethanol feed and chamber', exE21],
   ['Closed expander throttling', exExpThrottle],
   ['Closed expander start', exExpStart],
   ['LOX feed startup', exLox],

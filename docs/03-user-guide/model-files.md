@@ -184,7 +184,8 @@ gas; how the tables are built and interpolated is described in
 [fluid properties](../02-engineering/fluid-properties.md).
 
 5. A `combustion_chamber` needs a fuel and an oxidizer pair with a combustion
-   table. v0.5.0 ships H2/O2, CH4/O2 and C2H5OH/O2 (fuel on the `fuel` port).
+   table. Shipped pairs: H2/O2, CH4/O2, C2H5OH/O2 and C2H5OH/N2O (fuel on the
+   `fuel` port).
 
 ### 2.7 Quantities and units
 

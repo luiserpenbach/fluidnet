@@ -22,7 +22,8 @@ can compute the deviation of the actual injected enthalpy in its own units.
 
 Usage: python gen_combustion_tables.py OUT.json
        python gen_combustion_tables.py --augment TABLES.json   (add dh_wall/cp_wall only)
-       python gen_combustion_tables.py --replace TABLES.json FUEL [FUEL ...]   (regenerate those pairs only)
+       python gen_combustion_tables.py --replace TABLES.json PAIR [PAIR ...]   (regenerate or add those pairs only;
+                                                                                PAIR is FUEL for all pairs of a fuel or FUEL/OX for one)
 """
 import json
 import sys
@@ -42,12 +43,14 @@ PROPELLANTS = {
     'CH4': ('CH4', 'Methane', 200.0, 60e5, 'methane, 200 K (supercritical)'),
     'C2H5OH': ('C2H5OH', 'Ethanol', 293.15, 20e5, 'liquid ethanol, 293 K'),
     'O2': ('O2', 'Oxygen', 90.0, 20e5, 'liquid oxygen, 90 K'),
+    'N2O': ('N2O', 'NitrousOxide', 293.15, 60e5, 'liquid nitrous oxide, 293 K'),
 }
 
 PAIRS = [
     ('H2', 'O2', np.r_[np.linspace(0.5, 3.0, 6), np.linspace(3.5, 10.0, 27), 11.0, 12.0]),
     ('CH4', 'O2', np.r_[np.linspace(1.0, 2.2, 5), np.linspace(2.4, 5.0, 27), 5.5, 6.0]),
     ('C2H5OH', 'O2', np.r_[np.linspace(0.4, 1.0, 4), np.linspace(1.1, 2.8, 27), 3.0, 3.5]),
+    ('C2H5OH', 'N2O', np.r_[1.0, 1.5, np.linspace(2.0, 6.0, 21), 6.5, 7.0, 8.0, 10.0]),
 ]
 PC = np.array([1, 2, 5, 10, 20, 35, 50, 75, 100, 150, 200]) * 1e5
 T_WALL = 600.0
@@ -216,19 +219,21 @@ def main(out):
         json.dump(dict(meta=meta, tables=tables), f, separators=(',', ':'))
 
 
-def replace_pairs(path, fuels):
-    """Regenerate only the tables of the given fuels in an existing file."""
+def replace_pairs(path, names):
+    """Regenerate only the given pairs in an existing file; a pair not yet in the file is appended.
+
+    A name is FUEL (all pairs with that fuel) or FUEL/OX (one pair)."""
     global PAIRS
     keep = PAIRS
-    PAIRS = [p for p in keep if p[0] in fuels]
+    PAIRS = [p for p in keep if p[0] in names or f'{p[0]}/{p[1]}' in names]
     tmp = path + '.part'
     main(tmp)
     with open(tmp) as f:
         new = json.load(f)
     with open(path) as f:
         data = json.load(f)
-    by_fuel = {t['fuel']: t for t in new['tables']}
-    data['tables'] = [by_fuel.get(t['fuel'], t) for t in data['tables']]
+    by_pair = {(t['fuel'], t['oxidizer']): t for t in new['tables']}
+    data['tables'] = [by_pair.pop((t['fuel'], t['oxidizer']), t) for t in data['tables']] + list(by_pair.values())
     data['meta'].update(cantera=ct.__version__, coolprop=CP.get_global_param_string('version'))
     with open(path, 'w') as f:
         json.dump(data, f, separators=(',', ':'))

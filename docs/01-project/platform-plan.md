@@ -34,7 +34,7 @@ Status Draft: open questions are in section 11.
 | Area | State |
 |---|---|
 | Solver core | Rust; (P, h) node states; TR-BDF2 transient with colored finite-difference Jacobian and sparse LU; steady solver with flow guess, shaft continuation, Newton, pseudo-transient continuation and transient fallback; 5–50 ms for typical feed systems, 0.25 s for an expander steady state |
-| Physics | Liquid, gas, supercritical and two-phase (homogeneous equilibrium) flow; cavitation and flashing; pipes with inertia and friction; scheduled and pressure-actuated valves, check valves, regulators; rigid tanks; centrifugal pumps and impulse turbines with tabulated maps; shafts; walls with heat capacity, Bartz and Gnielinski heat transfer; one equilibrium combustion chamber per circuit pair (H2, CH4, ethanol with O2) |
+| Physics | Liquid, gas, supercritical and two-phase (homogeneous equilibrium) flow; cavitation and flashing; pipes with inertia and friction; scheduled and pressure-actuated valves, check valves, regulators; rigid tanks; centrifugal pumps and impulse turbines with tabulated maps; shafts; walls with heat capacity, Bartz and Gnielinski heat transfer; one equilibrium combustion chamber per circuit pair (H2, CH4, ethanol with O2; ethanol with N2O) |
 | Fluids | Eight CoolProp-tabulated pure fluids |
 | Front ends | CLI, Python package, browser schematic editor |
 | Evidence | 30 automated tests; RL10A-3-3A steady state within 0.62 % mean / 2.05 % max at four test points ([FNT-VAL-ANA-002](../04-verification/rl10.md)) |

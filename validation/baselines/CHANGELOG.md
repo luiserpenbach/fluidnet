@@ -8,3 +8,4 @@ Every update of the reference-result baselines, with the reason.
 | 2026-11-10 | 123eed2 | t_pump_design.transient | OI-020: pump stub volume now uses the pump design flow (was always 1e-5 m2 area); pump.out/in node dynamics change, steady state unchanged |
 | 2026-11-10 | 123eed2 | t_heated_pipe_boundaries.steady, t_heated_pipe_boundaries.transient | New test model for OI-021 (end-wall heat at boundaries) |
 | 2026-11-10 | 08ad737 | gn2_blowdown.steady, regulated_pressurization.steady, t_blowdown_n2.steady | v0.5.1: tanks are held as reservoirs in steady-state solves (gn2_blowdown, t_blowdown_n2 steady; regulated_pressurization steady added) |
+| 2026-11-22 | c42e6d5 | e2_1_feed.steady, e2_1_feed.transient | New example e2_1_feed (E2-1 N2O/ethanol feed and heat-sink chamber) with the new C2H5OH/N2O combustion table |
