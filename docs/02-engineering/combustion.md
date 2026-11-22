@@ -78,6 +78,7 @@ missing pair is a compile error that lists the available pairs.
 | H2 / O2 | gaseous hydrogen, 250 K, 50 bar | liquid oxygen, 90 K, 20 bar | 0.5–12 | 35 |
 | CH4 / O2 | methane, 200 K, 60 bar (supercritical) | liquid oxygen, 90 K, 20 bar | 1.0–6.0 | 34 |
 | C2H5OH / O2 | liquid ethanol, 293.15 K, 20 bar | liquid oxygen, 90 K, 20 bar | 0.4–3.5 | 33 |
+| C2H5OH / N2O | liquid ethanol, 293.15 K, 20 bar | liquid nitrous oxide, 293.15 K, 60 bar | 1.0–10 | 27 |
 
 The P_c grid is 1, 2, 5, 10, 20, 35, 50, 75, 100, 150 and 200 bar for all
 pairs. The O/F grids are denser around the region of peak c\* (for H2/O2:
@@ -256,12 +257,15 @@ valve can sense the chamber pressure by naming the chamber
   accumulation before ignition is not modelled.
 - Linear injection-enthalpy correction; valid for moderate deviations from the
   reference states.
-- Only the three tabulated propellant pairs are available.
+- Only the four tabulated propellant pairs are available.
 
 ## Verification
 
 - `tables_load_and_match_cea` (`src/combustion.rs`): H2/O2 at O/F 6 and 50 bar,
-  c\* = 2328.7 m/s within 2 m/s and T_c = 3508 K within 5 K of CEA.
+  c\* = 2328.7 m/s within 2 m/s and T_c = 3508 K within 5 K of CEA;
+  C2H5OH/N2O at O/F 2.35, 16.1 bar and O/F 4.37, 28.9 bar within 5 m/s in
+  c\* and 15 K in T_c of an independent Cantera calculation (1397 m/s,
+  2121 K and 1564 m/s, 3068 K).
 - `nozzle_relations`: Γ(1.4) = 0.6847; for γ = 1.2 and ε = 10, exit Mach
   number 3.27834 and vacuum C_F 1.74231 to 1×10⁻⁴.
 - `wall_enthalpy_potential_follows_mixture_ratio`: the H2/O2 wall potential

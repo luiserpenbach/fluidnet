@@ -1,0 +1,88 @@
+# E2-1 (heat-sink chamber E2-HS-1, direct N2O feed): engine feed from the
+# main valve inlets to the thrust chamber, at the 50 % point of ENG-C01.
+# Ids are the tags of the E2-1 Feed P&ID (E2-1_Feed.kicad_sch).
+#
+# Not modelled: filters (no pressure-drop data), the main-line check valves
+# OX-CV-41 / FU-CV-41, measurement port blocks, igniter and purge branches,
+# and the shutdown (see simulation).
+#
+# ASSUMED = not taken from a document or a measurement; replace when known.
+
+name: E2-1 engine feed and thrust chamber, 50 % point
+description: >
+  E2-HS-1 with MIH-1-A or MON-1-A (same oxidizer hole area), N2O and ethanol
+  at 20 degC, supplies at 100 bar. Start with oxidizer lead into a gas-filled
+  oxidizer line, then steady burn at about 0.47 / 0.195 kg/s.
+
+components:
+  # ---- Oxidizer --------------------------------------------------------
+  - {id: OX-SUPPLY, type: boundary, fluid: N2O, P: 100 bar, T: 293.15 K}   # bench side of the main valve
+  - id: OX-AV-41                      # main valve, pneumatic coaxial
+    type: valve
+    Kv: 2.5                           # ASSUMED (DN10 coaxial valve)
+    characteristic: quick_opening
+    opening: [[0, 0], [0.10, 0], [0.15, 1]]        # ASSUMED 50 ms stroke
+  - id: OX-MV-41                      # throttle ball valve
+    type: valve
+    Cv: 7.5                           # Swagelok ball valve of OTV-C01
+    characteristic: equal_percentage  # ASSUMED; replace with the OTV-C02 flow map
+    opening: 0.305                    # gives 0.47 kg/s at 20 degC with this characteristic
+  - {id: OX-VE-41, type: venturi, diameter: 3.92 mm, cd: 0.80, recovery: 0.55}   # HOP-100208; recovery from p2 <= 0.80 p1 at 94 bar
+  - id: OX-HS-41                      # line from the venturi to the injector
+    type: pipe
+    length: 1 m
+    diameter: 10 mm                   # ASSUMED bore of the 12 mm line
+    segments: 4
+    P0: 1 bar                         # starts gas-filled (stands in for the N2 purge gas)
+    T0: 293.15 K
+  - {id: OX-INJ, type: orifice, area: 58.8 mm2, cd: 0.75}   # oxidizer holes, MIH-1-A = MON-1-A
+
+  # ---- Fuel ------------------------------------------------------------
+  - {id: FU-SUPPLY, type: boundary, fluid: C2H5OH, P: 100 bar, T: 293.15 K}
+  - id: FU-AV-41                      # main valve, pneumatic coaxial
+    type: valve
+    Kv: 2.5                           # ASSUMED
+    characteristic: quick_opening
+    opening: [[0, 0], [0.25, 0], [0.30, 1]]        # ASSUMED timing: 150 ms oxidizer lead
+  - {id: FU-VE-41, type: venturi, diameter: 1.5 mm, cd: 0.874, recovery: 0.85}   # HOP-100040 S/N101, ethanol calibration
+  - id: FU-HS-41                      # line from the venturi to the injector
+    type: pipe
+    length: 1 m
+    diameter: 10 mm                   # ASSUMED bore of the 12 mm line
+    segments: 4
+    P0: 1 bar                         # starts liquid-filled: the fill time of an empty
+    T0: 293.15 K                      # line (about 0.3 s for 78 mL) is not in the result
+  - id: FU-INJ                        # fuel swirl elements as one effective orifice
+    type: orifice
+    area: 4.1 mm2                     # 15 bar at 0.20 kg/s (design); 3.1 mm2 for the 26 bar viscous-model value
+    cd: 1.0
+
+  # ---- Thrust chamber E2-HS-1 -------------------------------------------
+  - id: TCA
+    type: combustion_chamber
+    throat_area: 5.54 cm2             # 28 mm bore x throat Cd 0.9 (nominal; band 0.6 to 0.97)
+    volume: 0.94 L
+    area_ratio: 1                     # flat plate, sonic exit
+    p_ambient: 1 bar
+    cstar_eff: 0.955
+    cf_eff: 0.977
+    ignition_time: 0.30 s             # ASSUMED; the igniter is not modelled
+    P0: 1 bar
+
+connections:
+  - [OX-SUPPLY, OX-AV-41.in]
+  - [OX-AV-41.out, OX-MV-41.in]
+  - [OX-MV-41.out, OX-VE-41.in]
+  - [OX-VE-41.out, OX-HS-41.in]
+  - [OX-HS-41.out, OX-INJ.in]
+  - [OX-INJ.out, TCA.ox]
+  - [FU-SUPPLY, FU-AV-41.in]
+  - [FU-AV-41.out, FU-VE-41.in]
+  - [FU-VE-41.out, FU-HS-41.in]
+  - [FU-HS-41.out, FU-INJ.in]
+  - [FU-INJ.out, TCA.fuel]
+
+simulation:
+  t_end: 1.0          # start and steady burn. Closing the main valves is left out: without
+  output_dt: 0.001    # the purge the trapped lines cavitate and the integrator stalls.
+  steady_time: 1.0    # --steady gives the burn point directly

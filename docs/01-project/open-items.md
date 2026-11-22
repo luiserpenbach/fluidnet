@@ -16,7 +16,7 @@ Closed items stay in the table with the version that closed them.
 | OI-006 | Physics | Pipe momentum neglects the convective acceleration term | Small error in lines with large density change along the line | Assess magnitude on the RL10 jacket; add if above 0.5 % | Open |
 | OI-007 | Physics | Pipe wave speed from the fluid only; no wall elasticity | Water-hammer amplitudes and periods slightly high in compliant lines | Korteweg correction (WP6) | Open |
 | OI-008 | Physics | Combustion: instantaneous equilibrium, single isentropic exponent in the nozzle; vacuum Isp a few seconds above CEA shifting equilibrium before the 0.98 nozzle efficiency | Isp bias of about 1 % | Accept; document per analysis; optional frozen/shifting choice | Open |
-| OI-009 | Physics | Combustion tables only for H2, CH4 and ethanol with O2 | No N2O-oxidiser, RP-1 or fuel-/oxidiser-rich preburner gases | Table generator for arbitrary pairs; product tables in (P, h, mixture fraction) (WP5) | Open |
+| OI-009 | Physics | Combustion tables only for H2, CH4 and ethanol with O2, and ethanol with N2O | No RP-1 or fuel-/oxidiser-rich preburner gases | Table generator for arbitrary pairs; product tables in (P, h, mixture fraction) (WP5) | Open |
 | OI-010 | Physics | Pre-ignition chamber gas is an ideal mixture of the propellants at their injection temperatures | Approximate chamber filling before ignition | Accept | Open |
 | OI-011 | Physics | Debye heat capacity underestimates metals at low temperature (copper −16 % at 50 K) | Chill-down slightly fast | Tabulated c_p(T) per material (WP6) | Open |
 | OI-012 | Physics | No boiling heat transfer correlations | Chill-down of lines and jackets not predictive | WP6 | Open |
